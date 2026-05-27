@@ -1,0 +1,95 @@
+<?php
+
+namespace sapiencial\sapiencialapiclient\services;
+
+use Craft;
+use craft\base\Component;
+use craft\helpers\App;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\GuzzleException;
+use sapiencial\sapiencialapiclient\Plugin;
+use yii\base\InvalidConfigException;
+
+class ApiClient extends Component
+{
+    private ?Client $client = null;
+
+    public function fetchByType(string $type, int $id, ?string $site = null): array
+    {
+        $endpoint = match ($type) {
+            'book' => 'api/books/' . $id,
+            'chapter' => 'api/chapters/' . $id,
+            'resource' => 'api/resources/' . $id,
+            default => throw new InvalidConfigException('Unsupported type: ' . $type),
+        };
+
+        return $this->get($endpoint, ['site' => $site ?: $this->settings()->defaultSite]);
+    }
+
+    public function search(string $type, string $query, string $site, int $limit = 15, int $page = 1): array
+    {
+        $endpoint = match ($type) {
+            'book' => 'api/books',
+            'chapter' => 'api/chapters',
+            'resource' => 'api/resources',
+            default => throw new InvalidConfigException('Unsupported type: ' . $type),
+        };
+
+        return $this->get($endpoint, [
+            'q' => $query,
+            'site' => $site ?: $this->settings()->defaultSite,
+            'limit' => $limit,
+            'page' => $page,
+        ]);
+    }
+
+    private function get(string $path, array $query = []): array
+    {
+        $settings = $this->settings();
+        $baseUrl = rtrim(App::parseEnv($settings->baseUrl), '/');
+        $token = App::parseEnv($settings->apiToken);
+
+        if ($baseUrl === '' || $token === '') {
+            throw new InvalidConfigException('Sapiencial API settings incomplets (baseUrl/apiToken).');
+        }
+
+        $url = $baseUrl . '/' . ltrim($path, '/');
+
+        try {
+            $response = $this->client($baseUrl, $token, $settings->timeoutSeconds)->request('GET', $url, [
+                'query' => $query,
+            ]);
+        } catch (GuzzleException $e) {
+            Craft::error('[sapiencial-api-client] API error: ' . $e->getMessage(), __METHOD__);
+            throw new InvalidConfigException('Error fent la crida a Sapiencial API.');
+        }
+
+        $decoded = json_decode((string)$response->getBody(), true);
+        if (!is_array($decoded)) {
+            throw new InvalidConfigException('Resposta API invàlida.');
+        }
+
+        return $decoded;
+    }
+
+    private function client(string $baseUrl, string $token, int $timeout): Client
+    {
+        if ($this->client === null) {
+            $this->client = Craft::createGuzzleClient([
+                'base_uri' => $baseUrl,
+                'timeout' => $timeout,
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $token,
+                    'Accept' => 'application/json',
+                ],
+            ]);
+        }
+
+        return $this->client;
+    }
+
+    private function settings(): \sapiencial\sapiencialapiclient\models\Settings
+    {
+        return Plugin::$plugin->getSettings();
+    }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "sapiencial/craft-sapiencial-api-client",
+  "description": "Craft CMS plugin to consume Sapiencial API content.",
+  "type": "craft-plugin",
+  "version": "0.1.0",
+  "require": {
+    "craftcms/cms": "^5.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "sapiencial\\sapiencialapiclient\\": "src/"
+    }
+  },
+  "extra": {
+    "name": "Sapiencial API Client",
+    "handle": "sapiencial-api-client",
+    "class": "sapiencial\\sapiencialapiclient\\Plugin",
+    "developer": "Sapiencial",
+    "developerUrl": "https://sapiencial.com"
+  }
+}
