@@ -5,6 +5,7 @@ namespace sapiencial\sapiencialapiclient\controllers;
 use Craft;
 use craft\web\Controller;
 use sapiencial\sapiencialapiclient\Plugin;
+use Throwable;
 use yii\web\BadRequestHttpException;
 use yii\web\Response;
 
@@ -30,7 +31,16 @@ class SearchController extends Controller
             return $this->asJson(['items' => []]);
         }
 
-        $result = Plugin::$plugin->get('apiClient')->search($type, $q, $site);
+        try {
+            $result = Plugin::$plugin->get('apiClient')->search($type, $q, $site);
+        } catch (Throwable $e) {
+            Craft::error('[sapiencial-api-client] Search failed: ' . $e->getMessage(), __METHOD__);
+            Craft::$app->getResponse()->setStatusCode(400);
+            return $this->asJson([
+                'items' => [],
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return $this->asJson([
             'items' => $result['items'] ?? [],

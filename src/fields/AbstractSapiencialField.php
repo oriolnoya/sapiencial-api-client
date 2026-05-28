@@ -77,6 +77,7 @@ abstract class AbstractSapiencialField extends Field
         $list = '<div id="' . $namespacedId . '-results" class="zilch" style="margin-top:8px;"></div>';
 
         $actionUrl = UrlHelper::actionUrl('sapiencial-api-client/search/search');
+        $configuredDefaultSite = (string)(Plugin::$plugin->getSettings()->defaultSite ?? '');
         $payload = [
             'fieldId' => $namespacedId,
             'hiddenInputSelector' => '#' . $namespacedId,
@@ -87,7 +88,8 @@ abstract class AbstractSapiencialField extends Field
             'actionUrl' => $actionUrl,
             'csrfTokenName' => Craft::$app->getConfig()->getGeneral()->csrfTokenName,
             'csrfTokenValue' => Craft::$app->getRequest()->getCsrfToken(),
-            'site' => Craft::$app->getSites()->getCurrentSite()->handle,
+            // Prefer explicit plugin setting to avoid mismatches with CP current site handle.
+            'site' => $configuredDefaultSite !== '' ? $configuredDefaultSite : Craft::$app->getSites()->getCurrentSite()->handle,
         ];
 
         Craft::$app->view->registerJs('window.SapiencialField && window.SapiencialField.init(' . json_encode($payload) . ');');
