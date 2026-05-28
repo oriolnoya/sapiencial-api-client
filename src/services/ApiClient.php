@@ -22,7 +22,7 @@ class ApiClient extends Component
     public function testConnection(?string $site = null): array
     {
         $effectiveSite = $site ?: $this->settings()->defaultSite;
-        return $this->get('api/books', [
+        return $this->get('books', [
             'site' => $effectiveSite,
             'limit' => 1,
             'page' => 1,
@@ -32,9 +32,9 @@ class ApiClient extends Component
     public function fetchByType(string $type, int $id, ?string $site = null): array
     {
         $endpoint = match ($type) {
-            'book' => 'api/books/' . $id,
-            'chapter' => 'api/chapters/' . $id,
-            'resource' => 'api/resources/' . $id,
+            'book' => 'books/' . $id,
+            'chapter' => 'chapters/' . $id,
+            'resource' => 'resources/' . $id,
             default => throw new InvalidConfigException('Unsupported type: ' . $type),
         };
 
@@ -44,9 +44,9 @@ class ApiClient extends Component
     public function search(string $type, string $query, string $site, int $limit = 15, int $page = 1): array
     {
         $endpoint = match ($type) {
-            'book' => 'api/books',
-            'chapter' => 'api/chapters',
-            'resource' => 'api/resources',
+            'book' => 'books',
+            'chapter' => 'chapters',
+            'resource' => 'resources',
             default => throw new InvalidConfigException('Unsupported type: ' . $type),
         };
 
@@ -68,7 +68,10 @@ class ApiClient extends Component
             throw new InvalidConfigException('Sapiencial API settings incomplets (baseUrl/apiToken).');
         }
 
-        $url = $baseUrl . '/' . ltrim($path, '/');
+        $normalizedPath = ltrim($path, '/');
+        $baseHasApiSuffix = (bool)preg_match('#/api$#i', $baseUrl);
+        $fullPath = $baseHasApiSuffix ? $normalizedPath : 'api/' . $normalizedPath;
+        $url = $baseUrl . '/' . $fullPath;
 
         try {
             $response = $this->client($baseUrl, $token, $settings->timeoutSeconds)->request('GET', $url, [
