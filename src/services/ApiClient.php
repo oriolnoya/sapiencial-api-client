@@ -6,7 +6,9 @@ use Craft;
 use craft\base\Component;
 use craft\helpers\App;
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\Exception\RequestException;
 use sapiencial\sapiencialapiclient\Plugin;
 use yii\base\InvalidConfigException;
 
@@ -72,9 +74,33 @@ class ApiClient extends Component
             $response = $this->client($baseUrl, $token, $settings->timeoutSeconds)->request('GET', $url, [
                 'query' => $query,
             ]);
+        } catch (ConnectException $e) {
+            $error = sprintf(
+                'Connection error to %s: %s',
+                $url,
+                $e->getMessage()
+            );
+            Craft::error('[sapiencial-api-client] ' . $error, __METHOD__);
+            throw new InvalidConfigException($error, 0, $e);
+        } catch (RequestException $e) {
+            $status = $e->hasResponse() ? $e->getResponse()->getStatusCode() : 0;
+            $reason = $e->hasResponse() ? $e->getResponse()->getReasonPhrase() : 'No HTTP response';
+            $body = $e->hasResponse() ? trim((string)$e->getResponse()->getBody()) : '';
+            $body = mb_substr($body, 0, 600);
+
+            $error = sprintf(
+                'HTTP %d %s on %s%s',
+                $status,
+                $reason,
+                $url,
+                $body !== '' ? ' | Body: ' . $body : ''
+            );
+            Craft::error('[sapiencial-api-client] ' . $error, __METHOD__);
+            throw new InvalidConfigException($error, 0, $e);
         } catch (GuzzleException $e) {
-            Craft::error('[sapiencial-api-client] API error: ' . $e->getMessage(), __METHOD__);
-            throw new InvalidConfigException('Error fent la crida a Sapiencial API.');
+            $error = sprintf('Request error on %s: %s', $url, $e->getMessage());
+            Craft::error('[sapiencial-api-client] ' . $error, __METHOD__);
+            throw new InvalidConfigException($error, 0, $e);
         }
 
         $decoded = json_decode((string)$response->getBody(), true);
