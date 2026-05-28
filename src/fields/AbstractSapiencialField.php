@@ -84,7 +84,7 @@ abstract class AbstractSapiencialField extends Field
 
     public function getElementValidationRules(): array
     {
-        return [[$this, 'validateReference']];
+        return [[$this->handle, 'validateReference']];
     }
 
     public function validateReference(ElementInterface $element): void
