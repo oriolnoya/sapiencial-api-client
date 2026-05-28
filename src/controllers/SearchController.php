@@ -22,17 +22,14 @@ class SearchController extends Controller
         $type = (string)$request->getBodyParam('type');
         $q = trim((string)$request->getBodyParam('q', ''));
         $site = (string)$request->getBodyParam('site', '');
+        $limit = max(1, min(500, (int)$request->getBodyParam('limit', 200)));
 
         if (!in_array($type, ['book', 'chapter', 'resource'], true)) {
             throw new BadRequestHttpException('Invalid type');
         }
 
-        if (mb_strlen($q) < 2) {
-            return $this->asJson(['items' => []]);
-        }
-
         try {
-            $result = Plugin::$plugin->get('apiClient')->search($type, $q, $site);
+            $result = Plugin::$plugin->get('apiClient')->search($type, $q, $site, $limit, 1);
         } catch (Throwable $e) {
             Craft::error('[sapiencial-api-client] Search failed: ' . $e->getMessage(), __METHOD__);
             Craft::$app->getResponse()->setStatusCode(400);
