@@ -41,19 +41,24 @@
     <label>{{ 'API Connection Test' }}</label>
     <div class="instructions"><p>Run a quick API request and view a detailed log output.</p></div>
   </div>
-  <div class="input ltr">
-    <button type="button" class="btn" id="{{ 'sapiencial-test-connection-btn'|namespaceInputId }}">Test connection</button>
-    <span id="{{ 'sapiencial-test-connection-status'|namespaceInputId }}" class="light" style="margin-left:8px;"></span>
-    <pre id="{{ 'sapiencial-test-connection-log'|namespaceInputId }}" style="margin-top:10px; padding:10px; background:#f8f8f8; border:1px solid #ddd; border-radius:4px; max-height:240px; overflow:auto;">No test executed yet.</pre>
+  <div class="input ltr" data-sapiencial-connection-test>
+    <button type="button" class="btn" data-role="test-btn">Test connection</button>
+    <span class="light" style="margin-left:8px;" data-role="status"></span>
+    <pre style="margin-top:10px; padding:10px; background:#f8f8f8; border:1px solid #ddd; border-radius:4px; max-height:240px; overflow:auto;" data-role="log">No test executed yet.</pre>
   </div>
 </div>
 
 {% js %}
 (() => {
-  const btn = document.getElementById('{{ 'sapiencial-test-connection-btn'|namespaceInputId }}');
-  const statusEl = document.getElementById('{{ 'sapiencial-test-connection-status'|namespaceInputId }}');
-  const logEl = document.getElementById('{{ 'sapiencial-test-connection-log'|namespaceInputId }}');
-  const siteInput = document.getElementById('{{ 'defaultSite'|namespaceInputId }}');
+  const container = document.querySelector('[data-sapiencial-connection-test]');
+  if (!container) {
+    return;
+  }
+
+  const btn = container.querySelector('[data-role="test-btn"]');
+  const statusEl = container.querySelector('[data-role="status"]');
+  const logEl = container.querySelector('[data-role="log"]');
+  const siteInput = document.querySelector('input[name="settings[defaultSite]"]');
 
   if (!btn || !statusEl || !logEl) {
     return;
@@ -63,7 +68,8 @@
     logEl.textContent = Array.isArray(lines) && lines.length ? lines.join('\n') : 'No log output.';
   };
 
-  btn.addEventListener('click', async () => {
+  btn.addEventListener('click', async (ev) => {
+    ev.preventDefault();
     btn.disabled = true;
     statusEl.textContent = 'Running...';
     renderLog(['Running test...']);
