@@ -65,7 +65,7 @@ abstract class AbstractSapiencialField extends Field
         $id = Html::id($this->handle);
         $namespacedId = Craft::$app->view->namespaceInputId($id);
 
-        $html = Cp::editableTextFieldHtml([
+        $html = Cp::textFieldHtml([
             'id' => $id . '-search',
             'class' => 'text fullwidth',
             'name' => null,
