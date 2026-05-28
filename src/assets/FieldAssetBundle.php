@@ -11,7 +11,7 @@ class FieldAssetBundle extends AssetBundle
     {
         $this->sourcePath = '@sapiencial/sapiencialapiclient/assets/dist';
         $this->depends = [CpAsset::class];
-        $this->js = ['field.js'];
+        $this->js = ['field.v2.js'];
         parent::init();
     }
 }
