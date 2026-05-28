@@ -1,0 +1,111 @@
+{% extends "_layouts/cp" %}
+
+{% set title = "Sapiencial API Client" %}
+{% set selectedSubnavItem = 'items' %}
+{% set selectedTab = selectedTab ?? 'books' %}
+{% set tabs = {
+  books: { label: 'Llibres', url: url('sapiencial-api-client/books') },
+  chapters: { label: 'Capítols', url: url('sapiencial-api-client/chapters') },
+  resources: { label: 'Recursos', url: url('sapiencial-api-client/resources') },
+} %}
+
+{% block content %}
+  <div class="elementindex">
+    <main id="main" role="main" tabindex="-1">
+      <div id="header-container">
+        <header>
+          <div id="toolbar" class="flex">
+            <div class="search-container flex-grow texticon has-filter-btn">
+              <span class="texticon-icon search icon" aria-hidden="true"></span>
+              <input type="text" id="sapiencial-items-q" name="q" class="clearable text fullwidth" autocomplete="off" placeholder="Buscar..." value="{{ searchQuery ?? '' }}" dir="ltr" aria-label="Buscar">
+              <button type="button" class="clear-button clear-btn {{ (searchQuery ?? '') ? '' : 'hidden' }}" title="Borrar búsqueda" aria-label="Borrar búsqueda"></button>
+            </div>
+          </div>
+        </header>
+      </div>
+
+      {% if errorMessage %}
+        <div class="readable" style="margin-top:12px;">
+          <blockquote class="note">{{ errorMessage }}</blockquote>
+        </div>
+      {% endif %}
+
+      <div id="main-content">
+        <div class="tableview">
+          <table class="data fullwidth">
+            <thead>
+            <tr>
+              <th>Títol</th>
+              <th>ID</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for item in items %}
+              <tr>
+                <td>{{ item.title ?? '—' }}</td>
+                <td>
+                  <button type="button" class="btn small js-copy-id" data-id="{{ item.id }}">{{ item.id }}</button>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="2" class="light">No hi ha resultats.</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+{% endblock %}
+
+{% js %}
+(function () {
+  const searchInput = document.getElementById('sapiencial-items-q');
+  const clearButton = document.querySelector('.clear-button');
+  const path = '{{ selectedTab }}' === 'books' ? 'sapiencial-api-client/books' : ('{{ selectedTab }}' === 'chapters' ? 'sapiencial-api-client/chapters' : 'sapiencial-api-client/resources');
+
+  if (searchInput) {
+    const applySearch = () => {
+      const url = new URL('{{ url('sapiencial-api-client') }}' + '/' + path.split('/').pop(), window.location.origin);
+      const q = searchInput.value.trim();
+      if (q) {
+        url.searchParams.set('q', q);
+      }
+      window.location.assign(url.toString());
+    };
+
+    const syncClear = () => {
+      if (!clearButton) return;
+      clearButton.classList.toggle('hidden', !searchInput.value.trim());
+    };
+
+    searchInput.addEventListener('change', applySearch);
+    searchInput.addEventListener('input', syncClear);
+    syncClear();
+
+    if (clearButton) {
+      clearButton.addEventListener('click', () => {
+        if (!searchInput.value.trim()) return;
+        searchInput.value = '';
+        applySearch();
+      });
+    }
+  }
+
+  document.querySelectorAll('.js-copy-id').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = String(btn.dataset.id || '');
+      if (!id) return;
+      try {
+        await navigator.clipboard.writeText(id);
+        btn.textContent = id + ' Copiat';
+        setTimeout(() => { btn.textContent = id; }, 1000);
+      } catch (e) {
+        btn.textContent = id;
+      }
+    });
+  });
+})();
+{% endjs %}

@@ -7,7 +7,6 @@ use craft\base\ElementInterface;
 use craft\base\Field;
 use craft\helpers\Cp;
 use craft\helpers\Html;
-use craft\helpers\UrlHelper;
 use sapiencial\sapiencialapiclient\models\RemoteReference;
 use sapiencial\sapiencialapiclient\Plugin;
 
@@ -62,40 +61,25 @@ abstract class AbstractSapiencialField extends Field
 
     protected function inputHtml(mixed $value, ?ElementInterface $element = null, bool $inline = false): string
     {
-        $id = Html::id($this->handle);
-        $namespacedId = Craft::$app->view->namespaceInputId($id);
+        $configuredDefaultSite = (string)(Plugin::$plugin->getSettings()->defaultSite ?? '');
+        $site = $value?->site ?: ($configuredDefaultSite !== '' ? $configuredDefaultSite : Craft::$app->getSites()->getCurrentSite()->handle);
 
-        $html = Cp::textFieldHtml([
-            'id' => $id . '-search',
+        $idInput = Cp::textFieldHtml([
+            'id' => Html::id($this->handle . '-remote-id'),
             'class' => 'text fullwidth',
-            'name' => null,
-            'placeholder' => 'Busca ' . $this->referenceType() . '...',
+            'name' => $this->handle . '[remoteId]',
+            'type' => 'number',
+            'min' => 1,
+            'placeholder' => 'Sapiencial ' . $this->referenceType() . ' ID',
+            'value' => $value?->remoteId ?: '',
         ]);
 
-        $hidden = Html::hiddenInput($this->handle, $value ? json_encode($value->toArray(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : '');
-        $preview = '<div id="' . $namespacedId . '-preview" class="meta" style="margin-top:8px;">' . ($value ? Html::encode($value->title . ' (#' . $value->remoteId . ')') : 'Sense selecció') . '</div>';
-        $list = '<div id="' . $namespacedId . '-results" class="zilch" style="margin-top:8px;"></div>';
+        $hiddens = Html::hiddenInput($this->handle . '[type]', $this->referenceType());
+        $hiddens .= Html::hiddenInput($this->handle . '[site]', $site);
+        $hiddens .= Html::hiddenInput($this->handle . '[slug]', $value?->slug ?? '');
+        $hiddens .= Html::hiddenInput($this->handle . '[title]', $value?->title ?? '');
 
-        $actionUrl = UrlHelper::actionUrl('sapiencial-api-client/search/search');
-        $configuredDefaultSite = (string)(Plugin::$plugin->getSettings()->defaultSite ?? '');
-        $payload = [
-            'fieldId' => $namespacedId,
-            'hiddenInputSelector' => '#' . $namespacedId,
-            'searchInputSelector' => '#' . $namespacedId . '-search',
-            'resultsSelector' => '#' . $namespacedId . '-results',
-            'previewSelector' => '#' . $namespacedId . '-preview',
-            'type' => $this->referenceType(),
-            'actionUrl' => $actionUrl,
-            'csrfTokenName' => Craft::$app->getConfig()->getGeneral()->csrfTokenName,
-            'csrfTokenValue' => Craft::$app->getRequest()->getCsrfToken(),
-            // Prefer explicit plugin setting to avoid mismatches with CP current site handle.
-            'site' => $configuredDefaultSite !== '' ? $configuredDefaultSite : Craft::$app->getSites()->getCurrentSite()->handle,
-        ];
-
-        Craft::$app->view->registerJs('window.SapiencialField && window.SapiencialField.init(' . json_encode($payload) . ');');
-        Craft::$app->view->registerAssetBundle(\sapiencial\sapiencialapiclient\assets\FieldAssetBundle::class);
-
-        return $hidden . $html . $preview . $list;
+        return $idInput . $hiddens;
     }
 
     public function getElementValidationRules(): array

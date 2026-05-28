@@ -5,7 +5,9 @@ namespace sapiencial\sapiencialapiclient;
 use Craft;
 use craft\base\Plugin as CraftPlugin;
 use craft\events\RegisterComponentTypesEvent;
+use craft\events\RegisterUrlRulesEvent;
 use craft\services\Fields;
+use craft\web\UrlManager;
 use craft\web\twig\variables\CraftVariable;
 use sapiencial\sapiencialapiclient\fields\SapiencialBookField;
 use sapiencial\sapiencialapiclient\fields\SapiencialChapterField;
@@ -23,6 +25,7 @@ class Plugin extends CraftPlugin
     public string $schemaVersion = '1.0.0';
 
     public bool $hasCpSettings = true;
+    public bool $hasCpSection = true;
 
     public function init(): void
     {
@@ -52,6 +55,17 @@ class Plugin extends CraftPlugin
                 $variable = $event->sender;
                 $variable->set('sapiencial', SapiencialVariable::class);
                 Craft::$app->view->registerTwigExtension(new SapiencialTwigExtension());
+            }
+        );
+
+        Event::on(
+            UrlManager::class,
+            UrlManager::EVENT_REGISTER_CP_URL_RULES,
+            static function(RegisterUrlRulesEvent $event): void {
+                $event->rules['sapiencial-api-client'] = 'sapiencial-api-client/items/index';
+                $event->rules['sapiencial-api-client/books'] = 'sapiencial-api-client/items/books';
+                $event->rules['sapiencial-api-client/chapters'] = 'sapiencial-api-client/items/chapters';
+                $event->rules['sapiencial-api-client/resources'] = 'sapiencial-api-client/items/resources';
             }
         );
     }
