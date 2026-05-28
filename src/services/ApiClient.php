@@ -14,6 +14,19 @@ class ApiClient extends Component
 {
     private ?Client $client = null;
 
+    /**
+     * Performs a lightweight request to validate API connectivity and auth.
+     */
+    public function testConnection(?string $site = null): array
+    {
+        $effectiveSite = $site ?: $this->settings()->defaultSite;
+        return $this->get('api/books', [
+            'site' => $effectiveSite,
+            'limit' => 1,
+            'page' => 1,
+        ]);
+    }
+
     public function fetchByType(string $type, int $id, ?string $site = null): array
     {
         $endpoint = match ($type) {

@@ -33,3 +33,60 @@
   min: 1,
   max: 120
 }) }}
+
+<hr>
+
+<div class="field">
+  <div class="heading">
+    <label>{{ 'API Connection Test' }}</label>
+    <div class="instructions"><p>Run a quick API request and view a detailed log output.</p></div>
+  </div>
+  <div class="input ltr">
+    <button type="button" class="btn" id="{{ 'sapiencial-test-connection-btn'|namespaceInputId }}">Test connection</button>
+    <span id="{{ 'sapiencial-test-connection-status'|namespaceInputId }}" class="light" style="margin-left:8px;"></span>
+    <pre id="{{ 'sapiencial-test-connection-log'|namespaceInputId }}" style="margin-top:10px; padding:10px; background:#f8f8f8; border:1px solid #ddd; border-radius:4px; max-height:240px; overflow:auto;">No test executed yet.</pre>
+  </div>
+</div>
+
+{% js %}
+(() => {
+  const btn = document.getElementById('{{ 'sapiencial-test-connection-btn'|namespaceInputId }}');
+  const statusEl = document.getElementById('{{ 'sapiencial-test-connection-status'|namespaceInputId }}');
+  const logEl = document.getElementById('{{ 'sapiencial-test-connection-log'|namespaceInputId }}');
+  const siteInput = document.getElementById('{{ 'defaultSite'|namespaceInputId }}');
+
+  if (!btn || !statusEl || !logEl) {
+    return;
+  }
+
+  const renderLog = (lines) => {
+    logEl.textContent = Array.isArray(lines) && lines.length ? lines.join('\n') : 'No log output.';
+  };
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    statusEl.textContent = 'Running...';
+    renderLog(['Running test...']);
+
+    try {
+      const site = siteInput ? siteInput.value : '';
+      const {data} = await Craft.sendActionRequest('POST', 'sapiencial-api-client/settings/test-connection', {
+        data: { site },
+      });
+
+      renderLog(data.log || []);
+      if (data.success) {
+        statusEl.textContent = 'OK';
+      } else {
+        statusEl.textContent = 'Failed';
+      }
+    } catch (error) {
+      const message = error?.response?.data?.error || error?.message || 'Unknown error';
+      renderLog([`Error: ${message}`]);
+      statusEl.textContent = 'Failed';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+})();
+{% endjs %}
