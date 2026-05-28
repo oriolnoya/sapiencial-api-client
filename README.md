@@ -1,33 +1,31 @@
-# Sapiencial API Client (Craft 5 plugin)
+# Sapiencial API Client (Import/Sync-only)
 
-## Qué aporta
-- 3 custom fields: `Sapiencial Book`, `Sapiencial Chapter`, `Sapiencial Resource`.
-- Selector remoto searchable en CP.
-- API Twig para traer contenido remoto con cache `stale-while-revalidate`.
-- Persistencia en tabla propia + espejo opcional en fields del entry.
+## Purpose
+This plugin imports Sapiencial API content into local Craft entries and syncs updates manually.
 
-## Instalación en este monorepo
-1. Ejecuta `composer update sapiencial/craft-sapiencial-api-client`.
-2. Instala el plugin en Craft (`php craft plugin/install sapiencial-api-client`).
-3. Configura settings del plugin (base URL, token, site por defecto, timeout).
+## What it does
+- Browse remote Sapiencial books from CP.
+- Import a book and descendants (chapters, resources, persons) into local entries.
+- Sync an imported book on demand.
+- Hard-delete descendants removed upstream, scoped to that imported book.
 
-## Uso en Twig
-```twig
-{% set data = craft.sapiencial.fetch(entry, 'mySapiencialBookField', {
-  mirrorJsonFieldHandle: 'sapiencialPayloadJson',
-  mirrorUpdatedAtFieldHandle: 'sapiencialPayloadUpdatedAt'
-}) %}
+## Required setup
+Create local sections (and one entry type in each):
+- `sapiencialBooks`
+- `sapiencialChapters`
+- `sapiencialResources`
+- `sapiencialPersons`
 
-{% if data %}
-  <h2>{{ data.title }}</h2>
-{% endif %}
-```
+You can change these handles in plugin settings.
 
-También puedes usar la función:
-```twig
-{% set data = sapiencial_fetch(entry, 'mySapiencialBookField') %}
-```
+Optional relation fields used by sync wiring (if present):
+- On books: `sapiencialChapters`, `sapiencialPersons`
+- On chapters: `sapiencialResources`
 
-## Notas
-- Primera llamada: fetch síncrono + guardado.
-- Llamadas siguientes: devuelve caché inmediata y encola refresh en background.
+## Settings
+- Base URL
+- Bearer token
+- Default site handle
+- Timeout
+- Section handles for imported entities
+- Dry-run by default

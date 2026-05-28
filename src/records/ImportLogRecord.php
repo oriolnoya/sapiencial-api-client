@@ -4,10 +4,10 @@ namespace sapiencial\sapiencialapiclient\records;
 
 use craft\db\ActiveRecord;
 
-class FetchCacheRecord extends ActiveRecord
+class ImportLogRecord extends ActiveRecord
 {
     public static function tableName(): string
     {
-        return '{{%sapiencial_api_fetch_cache}}';
+        return '{{%sapiencial_import_logs}}';
     }
 }

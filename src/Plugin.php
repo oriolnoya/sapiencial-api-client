@@ -4,26 +4,20 @@ namespace sapiencial\sapiencialapiclient;
 
 use Craft;
 use craft\base\Plugin as CraftPlugin;
-use craft\events\RegisterComponentTypesEvent;
 use craft\events\RegisterUrlRulesEvent;
-use craft\services\Fields;
 use craft\web\UrlManager;
-use craft\web\twig\variables\CraftVariable;
-use sapiencial\sapiencialapiclient\fields\SapiencialBookField;
-use sapiencial\sapiencialapiclient\fields\SapiencialChapterField;
-use sapiencial\sapiencialapiclient\fields\SapiencialResourceField;
 use sapiencial\sapiencialapiclient\models\Settings;
 use sapiencial\sapiencialapiclient\services\ApiClient;
-use sapiencial\sapiencialapiclient\services\FetchService;
-use sapiencial\sapiencialapiclient\twig\SapiencialTwigExtension;
-use sapiencial\sapiencialapiclient\variables\SapiencialVariable;
+use sapiencial\sapiencialapiclient\services\ImportSyncService;
+use sapiencial\sapiencialapiclient\services\MappingService;
+use sapiencial\sapiencialapiclient\services\RemoteCatalogService;
 use yii\base\Event;
 
 class Plugin extends CraftPlugin
 {
     public static Plugin $plugin;
-    public string $schemaVersion = '1.0.0';
 
+    public string $schemaVersion = '2.0.0';
     public bool $hasCpSettings = true;
     public bool $hasCpSection = true;
 
@@ -34,29 +28,10 @@ class Plugin extends CraftPlugin
 
         $this->setComponents([
             'apiClient' => ApiClient::class,
-            'fetchService' => FetchService::class,
+            'remoteCatalog' => RemoteCatalogService::class,
+            'mapping' => MappingService::class,
+            'importSync' => ImportSyncService::class,
         ]);
-
-        Event::on(
-            Fields::class,
-            Fields::EVENT_REGISTER_FIELD_TYPES,
-            static function(RegisterComponentTypesEvent $event): void {
-                $event->types[] = SapiencialBookField::class;
-                $event->types[] = SapiencialChapterField::class;
-                $event->types[] = SapiencialResourceField::class;
-            }
-        );
-
-        Event::on(
-            CraftVariable::class,
-            CraftVariable::EVENT_INIT,
-            static function(Event $event): void {
-                /** @var CraftVariable $variable */
-                $variable = $event->sender;
-                $variable->set('sapiencial', SapiencialVariable::class);
-                Craft::$app->view->registerTwigExtension(new SapiencialTwigExtension());
-            }
-        );
 
         Event::on(
             UrlManager::class,
@@ -66,6 +41,8 @@ class Plugin extends CraftPlugin
                 $event->rules['sapiencial-api-client/books'] = 'sapiencial-api-client/items/books';
                 $event->rules['sapiencial-api-client/chapters'] = 'sapiencial-api-client/items/chapters';
                 $event->rules['sapiencial-api-client/resources'] = 'sapiencial-api-client/items/resources';
+                $event->rules['sapiencial-api-client/import'] = 'sapiencial-api-client/items/import';
+                $event->rules['sapiencial-api-client/sync'] = 'sapiencial-api-client/items/sync';
             }
         );
     }
@@ -80,5 +57,21 @@ class Plugin extends CraftPlugin
         return Craft::$app->view->renderTemplate('sapiencial-api-client/settings', [
             'settings' => $this->getSettings(),
         ]);
+    }
+
+    public function getCpNavItem(): ?array
+    {
+        $item = parent::getCpNavItem();
+        if ($item === null) {
+            return null;
+        }
+
+        $item['subnav'] = [
+            'books' => ['label' => 'Llibres', 'url' => 'sapiencial-api-client/books'],
+            'chapters' => ['label' => 'Capítols', 'url' => 'sapiencial-api-client/chapters'],
+            'resources' => ['label' => 'Recursos', 'url' => 'sapiencial-api-client/resources'],
+        ];
+
+        return $item;
     }
 }

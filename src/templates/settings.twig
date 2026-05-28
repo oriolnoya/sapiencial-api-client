@@ -2,7 +2,7 @@
 
 {{ forms.autosuggestField({
   label: 'Sapiencial API Base URL',
-  instructions: 'Ex: https://your-sapiencial-site.com',
+  instructions: 'Ex: https://your-sapiencial-site.com or https://your-sapiencial-site.com/api',
   id: 'baseUrl',
   name: 'baseUrl',
   value: settings.baseUrl,
@@ -36,63 +36,37 @@
 
 <hr>
 
-<div class="field">
-  <div class="heading">
-    <label>{{ 'API Connection Test' }}</label>
-    <div class="instructions"><p>Run a quick API request and view a detailed log output.</p></div>
-  </div>
-  <div class="input ltr" data-sapiencial-connection-test>
-    <button type="button" class="btn" data-role="test-btn">Test connection</button>
-    <span class="light" style="margin-left:8px;" data-role="status"></span>
-    <pre style="margin-top:10px; padding:10px; background:#f8f8f8; border:1px solid #ddd; border-radius:4px; max-height:240px; overflow:auto;" data-role="log">No test executed yet.</pre>
-  </div>
-</div>
+{{ forms.textField({
+  label: 'Sapiencial Books Section Handle',
+  id: 'sapiencialBooksSectionHandle',
+  name: 'sapiencialBooksSectionHandle',
+  value: settings.sapiencialBooksSectionHandle
+}) }}
 
-{% js %}
-(() => {
-  const container = document.querySelector('[data-sapiencial-connection-test]');
-  if (!container) {
-    return;
-  }
+{{ forms.textField({
+  label: 'Sapiencial Chapters Section Handle',
+  id: 'sapiencialChaptersSectionHandle',
+  name: 'sapiencialChaptersSectionHandle',
+  value: settings.sapiencialChaptersSectionHandle
+}) }}
 
-  const btn = container.querySelector('[data-role="test-btn"]');
-  const statusEl = container.querySelector('[data-role="status"]');
-  const logEl = container.querySelector('[data-role="log"]');
-  const siteInput = document.querySelector('input[name="settings[defaultSite]"]');
+{{ forms.textField({
+  label: 'Sapiencial Resources Section Handle',
+  id: 'sapiencialResourcesSectionHandle',
+  name: 'sapiencialResourcesSectionHandle',
+  value: settings.sapiencialResourcesSectionHandle
+}) }}
 
-  if (!btn || !statusEl || !logEl) {
-    return;
-  }
+{{ forms.textField({
+  label: 'Sapiencial Persons Section Handle',
+  id: 'sapiencialPersonsSectionHandle',
+  name: 'sapiencialPersonsSectionHandle',
+  value: settings.sapiencialPersonsSectionHandle
+}) }}
 
-  const renderLog = (lines) => {
-    logEl.textContent = Array.isArray(lines) && lines.length ? lines.join('\n') : 'No log output.';
-  };
-
-  btn.addEventListener('click', async (ev) => {
-    ev.preventDefault();
-    btn.disabled = true;
-    statusEl.textContent = 'Running...';
-    renderLog(['Running test...']);
-
-    try {
-      const site = siteInput ? siteInput.value : '';
-      const {data} = await Craft.sendActionRequest('POST', 'sapiencial-api-client/settings/test-connection', {
-        data: { site },
-      });
-
-      renderLog(data.log || []);
-      if (data.success) {
-        statusEl.textContent = 'OK';
-      } else {
-        statusEl.textContent = 'Failed';
-      }
-    } catch (error) {
-      const message = error?.response?.data?.error || error?.message || 'Unknown error';
-      renderLog([`Error: ${message}`]);
-      statusEl.textContent = 'Failed';
-    } finally {
-      btn.disabled = false;
-    }
-  });
-})();
-{% endjs %}
+{{ forms.lightswitchField({
+  label: 'Enable Dry-Run by default',
+  id: 'enableDryRunByDefault',
+  name: 'enableDryRunByDefault',
+  on: settings.enableDryRunByDefault
+}) }}

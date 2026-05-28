@@ -1,7 +1,7 @@
 {% extends "_layouts/cp" %}
 
 {% set title = "Sapiencial API Client" %}
-{% set selectedSubnavItem = 'items' %}
+{% set selectedSubnavItem = selectedTab ?? 'books' %}
 {% set selectedTab = selectedTab ?? 'books' %}
 {% set tabs = {
   books: { label: 'Llibres', url: url('sapiencial-api-client/books') },
@@ -10,65 +10,78 @@
 } %}
 
 {% block content %}
-  <div class="elementindex">
-    <main id="main" role="main" tabindex="-1">
-      <div id="header-container">
-        <header>
-          <div id="toolbar" class="flex">
-            <div class="search-container flex-grow texticon has-filter-btn">
-              <span class="texticon-icon search icon" aria-hidden="true"></span>
-              <input type="text" id="sapiencial-items-q" name="q" class="clearable text fullwidth" autocomplete="off" placeholder="Buscar..." value="{{ searchQuery ?? '' }}" dir="ltr" aria-label="Buscar">
-              <button type="button" class="clear-button clear-btn {{ (searchQuery ?? '') ? '' : 'hidden' }}" title="Borrar búsqueda" aria-label="Borrar búsqueda"></button>
-            </div>
+<div class="elementindex">
+  <main id="main" role="main" tabindex="-1">
+    <div id="header-container">
+      <header>
+        <div id="toolbar" class="flex">
+          <div class="search-container flex-grow texticon has-filter-btn">
+            <span class="texticon-icon search icon" aria-hidden="true"></span>
+            <input type="text" id="sapiencial-items-q" name="q" class="clearable text fullwidth" autocomplete="off" placeholder="Buscar..." value="{{ searchQuery ?? '' }}" dir="ltr" aria-label="Buscar">
+            <button type="button" class="clear-button clear-btn {{ (searchQuery ?? '') ? '' : 'hidden' }}" title="Borrar búsqueda" aria-label="Borrar búsqueda"></button>
           </div>
-        </header>
-      </div>
-
-      {% if errorMessage %}
-        <div class="readable" style="margin-top:12px;">
-          <blockquote class="note">{{ errorMessage }}</blockquote>
         </div>
-      {% endif %}
+      </header>
+    </div>
 
-      <div id="main-content">
-        <div class="tableview">
-          <table class="data fullwidth">
-            <thead>
-            <tr>
-              <th>Títol</th>
-              <th>ID</th>
-            </tr>
-            </thead>
-            <tbody>
-            {% for item in items %}
+    <div id="main-content">
+      <div class="tableview">
+        <table class="data fullwidth">
+          <thead>
+          <tr>
+            <th>Títol</th>
+            <th>ID</th>
+            {% if selectedTab == 'books' %}<th>Accions</th>{% endif %}
+          </tr>
+          </thead>
+          <tbody>
+          {% if selectedTab == 'books' %}
+            {% for item in remoteItems %}
               <tr>
                 <td>{{ item.title ?? '—' }}</td>
+                <td><button type="button" class="btn small js-copy-id" data-id="{{ item.id }}">{{ item.id }}</button></td>
                 <td>
-                  <button type="button" class="btn small js-copy-id" data-id="{{ item.id }}">{{ item.id }}</button>
+                  {% set isImported = importedIds[item.id] is defined %}
+                  <form method="post" accept-charset="UTF-8" style="display:inline-block;">
+                    {{ csrfInput() }}
+                    {{ actionInput(isImported ? 'sapiencial-api-client/items/sync' : 'sapiencial-api-client/items/import') }}
+                    {{ hiddenInput('remoteBookId', item.id) }}
+                    {{ hiddenInput('site', craft.app.plugins.getPlugin('sapiencial-api-client').getSettings().defaultSite) }}
+                    {{ hiddenInput('dryRun', craft.app.plugins.getPlugin('sapiencial-api-client').getSettings().enableDryRunByDefault ? 1 : 0) }}
+                    <button class="btn small">{{ isImported ? 'Sync' : 'Import' }}</button>
+                  </form>
                 </td>
               </tr>
             {% else %}
-              <tr>
-                <td colspan="2" class="light">No hi ha resultats.</td>
-              </tr>
+              <tr><td colspan="3" class="light">No hi ha resultats.</td></tr>
             {% endfor %}
-            </tbody>
-          </table>
-        </div>
+          {% else %}
+            {% for row in rows %}
+              <tr>
+                <td>{{ row.title }}</td>
+                <td><button type="button" class="btn small js-copy-id" data-id="{{ row.id }}">{{ row.id }}</button></td>
+              </tr>
+            {% else %}
+              <tr><td colspan="2" class="light">No hi ha resultats.</td></tr>
+            {% endfor %}
+          {% endif %}
+          </tbody>
+        </table>
       </div>
-    </main>
-  </div>
+    </div>
+  </main>
+</div>
 {% endblock %}
 
 {% js %}
 (function () {
   const searchInput = document.getElementById('sapiencial-items-q');
   const clearButton = document.querySelector('.clear-button');
-  const path = '{{ selectedTab }}' === 'books' ? 'sapiencial-api-client/books' : ('{{ selectedTab }}' === 'chapters' ? 'sapiencial-api-client/chapters' : 'sapiencial-api-client/resources');
+  const path = '{{ selectedTab }}';
 
   if (searchInput) {
     const applySearch = () => {
-      const url = new URL('{{ url('sapiencial-api-client') }}' + '/' + path.split('/').pop(), window.location.origin);
+      const url = new URL('{{ url('sapiencial-api-client') }}' + '/' + path, window.location.origin);
       const q = searchInput.value.trim();
       if (q) {
         url.searchParams.set('q', q);
@@ -101,7 +114,7 @@
       try {
         await navigator.clipboard.writeText(id);
         btn.textContent = id + ' Copiat';
-        setTimeout(() => { btn.textContent = id; }, 1000);
+        setTimeout(() => { btn.textContent = id; }, 900);
       } catch (e) {
         btn.textContent = id;
       }

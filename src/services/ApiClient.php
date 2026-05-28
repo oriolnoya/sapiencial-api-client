@@ -16,19 +16,6 @@ class ApiClient extends Component
 {
     private ?Client $client = null;
 
-    /**
-     * Performs a lightweight request to validate API connectivity and auth.
-     */
-    public function testConnection(?string $site = null): array
-    {
-        $effectiveSite = $site ?: $this->settings()->defaultSite;
-        return $this->get('books', [
-            'site' => $effectiveSite,
-            'limit' => 1,
-            'page' => 1,
-        ]);
-    }
-
     public function fetchByType(string $type, int $id, ?string $site = null): array
     {
         $endpoint = match ($type) {
@@ -38,10 +25,12 @@ class ApiClient extends Component
             default => throw new InvalidConfigException('Unsupported type: ' . $type),
         };
 
-        return $this->get($endpoint, ['site' => $site ?: $this->settings()->defaultSite]);
+        return $this->get($endpoint, [
+            'site' => $site ?: $this->settings()->defaultSite,
+        ]);
     }
 
-    public function search(string $type, string $query, string $site, int $limit = 15, int $page = 1): array
+    public function search(string $type, string $query = '', ?string $site = null, int $limit = 100, int $page = 1): array
     {
         $endpoint = match ($type) {
             'book' => 'books',
@@ -78,18 +67,14 @@ class ApiClient extends Component
                 'query' => $query,
             ]);
         } catch (ConnectException $e) {
-            $error = sprintf(
-                'Connection error to %s: %s',
-                $url,
-                $e->getMessage()
-            );
+            $error = sprintf('Connection error to %s: %s', $url, $e->getMessage());
             Craft::error('[sapiencial-api-client] ' . $error, __METHOD__);
             throw new InvalidConfigException($error, 0, $e);
         } catch (RequestException $e) {
             $status = $e->hasResponse() ? $e->getResponse()->getStatusCode() : 0;
             $reason = $e->hasResponse() ? $e->getResponse()->getReasonPhrase() : 'No HTTP response';
             $body = $e->hasResponse() ? trim((string)$e->getResponse()->getBody()) : '';
-            $body = mb_substr($body, 0, 600);
+            $body = mb_substr($body, 0, 800);
 
             $error = sprintf(
                 'HTTP %d %s on %s%s',
