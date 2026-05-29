@@ -6,6 +6,7 @@ use Craft;
 use craft\base\Plugin as CraftPlugin;
 use craft\events\RegisterUrlRulesEvent;
 use craft\web\UrlManager;
+use craft\web\View;
 use sapiencial\sapiencialapiclient\models\Settings;
 use sapiencial\sapiencialapiclient\services\ApiClient;
 use sapiencial\sapiencialapiclient\services\ContentModelService;
@@ -43,6 +44,58 @@ class Plugin extends CraftPlugin
             } catch (\Throwable $e) {
                 Craft::warning('[sapiencial-api-client] Unable to auto-bootstrap content model: ' . $e->getMessage(), __METHOD__);
             }
+
+            Event::on(
+                View::class,
+                View::EVENT_BEFORE_RENDER_PAGE_TEMPLATE,
+                static function(): void {
+                    Craft::$app->getView()->registerJs(<<<'JS'
+(() => {
+  const lockSapiencialId = () => {
+    document.querySelectorAll('input[name^="fields[sapiencialId]"]').forEach((input) => {
+      if (!(input instanceof HTMLInputElement)) return;
+      input.setAttribute('step', '1');
+      input.setAttribute('inputmode', 'numeric');
+      input.setAttribute('readonly', 'readonly');
+      input.type = 'hidden';
+
+      const container = input.closest('.input');
+      if (!container) return;
+
+      let badge = container.querySelector('.sapiencial-id-badge');
+      if (!badge) {
+        badge = document.createElement('div');
+        badge.className = 'sapiencial-id-badge';
+        container.appendChild(badge);
+      }
+
+      const raw = (input.value || '').trim();
+      badge.textContent = raw !== '' ? raw : '—';
+      badge.setAttribute('title', 'Managed by Sapiencial sync.');
+    });
+  };
+  lockSapiencialId();
+  const observer = new MutationObserver(lockSapiencialId);
+  observer.observe(document.body, {childList: true, subtree: true});
+})();
+JS);
+                    Craft::$app->getView()->registerCss(<<<'CSS'
+.sapiencial-id-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #d5dce5;
+  border-radius: 6px;
+  background: #f4f7fb;
+  color: #3d4b5c;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+CSS);
+                }
+            );
         }
 
         Event::on(

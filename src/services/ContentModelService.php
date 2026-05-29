@@ -168,7 +168,26 @@ class ContentModelService extends Component
             $sapiencialIdField->name = 'Sapiencial ID';
             $sapiencialIdField->handle = self::SAPIENCIAL_ID_FIELD_HANDLE;
             $sapiencialIdField->decimals = 0;
+            $sapiencialIdField->step = 1;
+            $sapiencialIdField->min = 0;
             $fieldsService->saveField($sapiencialIdField);
+        } else {
+            $dirty = false;
+            if ($sapiencialIdField->decimals !== 0) {
+                $sapiencialIdField->decimals = 0;
+                $dirty = true;
+            }
+            if ($sapiencialIdField->step !== 1) {
+                $sapiencialIdField->step = 1;
+                $dirty = true;
+            }
+            if ($sapiencialIdField->min !== 0) {
+                $sapiencialIdField->min = 0;
+                $dirty = true;
+            }
+            if ($dirty) {
+                $fieldsService->saveField($sapiencialIdField);
+            }
         }
 
         return [$payloadField, $refreshedAtField, $sapiencialIdField];
