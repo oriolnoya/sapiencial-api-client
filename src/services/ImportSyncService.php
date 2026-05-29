@@ -176,6 +176,14 @@ class ImportSyncService extends Component
 
         $entry->title = $title;
         $entry->slug = $slug;
+        $entry->setFieldValue(
+            ContentModelService::PAYLOAD_JSON_FIELD_HANDLE,
+            json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
+        $entry->setFieldValue(
+            ContentModelService::REFRESHED_AT_FIELD_HANDLE,
+            new DateTime()
+        );
 
         if (!Craft::$app->elements->saveElement($entry, true, true, false)) {
             $err = implode(' | ', array_map(static fn(array $e): string => implode(', ', $e), $entry->getErrors()));

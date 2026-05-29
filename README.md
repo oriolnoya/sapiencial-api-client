@@ -20,6 +20,10 @@ On CP load (and before import/sync), the plugin auto-creates missing sections + 
 
 You can change these handles in plugin settings.
 
+The plugin also auto-creates and attaches these fields to each Sapiencial entry type:
+- `sapiencialPayloadJson` (Plain Text, JSON payload snapshot)
+- `sapiencialRefreshedAt` (Date/Time, last refresh timestamp)
+
 Optional relation fields used by sync wiring (if present):
 - On books: `sapiencialChapters`, `sapiencialPersons`
 - On chapters: `sapiencialResources`
