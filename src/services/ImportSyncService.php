@@ -238,6 +238,8 @@ class ImportSyncService extends Component
             return;
         }
 
+        $linkedChapterEntryIds = [];
+        $linkedPersonEntryIds = [];
         $topicToBook = [];
         foreach (($graph['book']['topics'] ?? []) as $topic) {
             $topicId = (int)($topic['id'] ?? 0);
@@ -246,6 +248,7 @@ class ImportSyncService extends Component
             }
         }
         $topicToChapterIds = [];
+        $linkedResourceByChapter = [];
 
         // Chapter -> parent Book and Resource -> parent Chapter
         foreach ($graph['resourcesByChapter'] as $chapterRemoteId => $resources) {
@@ -253,6 +256,7 @@ class ImportSyncService extends Component
             if (!$chapterEntryId) {
                 continue;
             }
+            $linkedChapterEntryIds[] = $chapterEntryId;
 
             $chapter = Entry::find()->id($chapterEntryId)->site('*')->status(null)->one();
             if (!$chapter) {
@@ -287,6 +291,7 @@ class ImportSyncService extends Component
                     $resourceEntry->setFieldValue(ContentModelService::RESOURCE_PARENT_CHAPTER_FIELD_HANDLE, [$chapterEntryId]);
                 }
                 Craft::$app->elements->saveElement($resourceEntry, false, false, false);
+                $linkedResourceByChapter[$chapterEntryId][] = (int)$resourceEntry->id;
             }
         }
 
@@ -304,9 +309,12 @@ class ImportSyncService extends Component
                 $personEntry->setFieldValue(ContentModelService::PERSON_PARENT_BOOK_FIELD_HANDLE, [$bookEntryId]);
             }
             Craft::$app->elements->saveElement($personEntry, false, false, false);
+            $linkedPersonEntryIds[] = (int)$personEntry->id;
         }
 
         // Topic -> parent Books and parent Chapters
+        $linkedBookTopicEntryIds = [];
+        $linkedChapterTopicEntryIds = [];
         foreach ($graph['topics'] as $topic) {
             $topicRemoteId = (int)($topic['id'] ?? 0);
             if ($topicRemoteId < 1) {
@@ -331,6 +339,45 @@ class ImportSyncService extends Component
                 $topicEntry->setFieldValue(ContentModelService::TOPIC_CHAPTERS_FIELD_HANDLE, $chapterIds);
             }
             Craft::$app->elements->saveElement($topicEntry, false, false, false);
+
+            if (!empty($bookIds)) {
+                $linkedBookTopicEntryIds[] = (int)$topicEntry->id;
+            }
+            foreach ($chapterIds as $chapterId) {
+                $linkedChapterTopicEntryIds[$chapterId][] = (int)$topicEntry->id;
+            }
+        }
+
+        // Reverse relations on parents (auto-maintained from child-owned links).
+        if ($book->getFieldLayout()?->getFieldByHandle(ContentModelService::BOOK_LINKED_CHAPTERS_FIELD_HANDLE) !== null) {
+            $book->setFieldValue(ContentModelService::BOOK_LINKED_CHAPTERS_FIELD_HANDLE, array_values(array_unique($linkedChapterEntryIds)));
+        }
+        if ($book->getFieldLayout()?->getFieldByHandle(ContentModelService::BOOK_LINKED_PERSONS_FIELD_HANDLE) !== null) {
+            $book->setFieldValue(ContentModelService::BOOK_LINKED_PERSONS_FIELD_HANDLE, array_values(array_unique($linkedPersonEntryIds)));
+        }
+        if ($book->getFieldLayout()?->getFieldByHandle(ContentModelService::BOOK_LINKED_TOPICS_FIELD_HANDLE) !== null) {
+            $book->setFieldValue(ContentModelService::BOOK_LINKED_TOPICS_FIELD_HANDLE, array_values(array_unique($linkedBookTopicEntryIds)));
+        }
+        Craft::$app->elements->saveElement($book, false, false, false);
+
+        foreach ($linkedChapterEntryIds as $chapterEntryId) {
+            $chapter = Entry::find()->id((int)$chapterEntryId)->site('*')->status(null)->one();
+            if (!$chapter) {
+                continue;
+            }
+            if ($chapter->getFieldLayout()?->getFieldByHandle(ContentModelService::CHAPTER_LINKED_RESOURCES_FIELD_HANDLE) !== null) {
+                $chapter->setFieldValue(
+                    ContentModelService::CHAPTER_LINKED_RESOURCES_FIELD_HANDLE,
+                    array_values(array_unique($linkedResourceByChapter[$chapterEntryId] ?? []))
+                );
+            }
+            if ($chapter->getFieldLayout()?->getFieldByHandle(ContentModelService::CHAPTER_LINKED_TOPICS_FIELD_HANDLE) !== null) {
+                $chapter->setFieldValue(
+                    ContentModelService::CHAPTER_LINKED_TOPICS_FIELD_HANDLE,
+                    array_values(array_unique($linkedChapterTopicEntryIds[$chapterEntryId] ?? []))
+                );
+            }
+            Craft::$app->elements->saveElement($chapter, false, false, false);
         }
     }
 

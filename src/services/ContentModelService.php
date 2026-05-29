@@ -30,9 +30,22 @@ class ContentModelService extends Component
     public const PERSON_PARENT_BOOK_FIELD_HANDLE = 'sapiencialPersonParentBook';
     public const TOPIC_BOOKS_FIELD_HANDLE = 'sapiencialTopicBooks';
     public const TOPIC_CHAPTERS_FIELD_HANDLE = 'sapiencialTopicChapters';
+    public const BOOK_LINKED_CHAPTERS_FIELD_HANDLE = 'sapiencialLinkedChapters';
+    public const BOOK_LINKED_PERSONS_FIELD_HANDLE = 'sapiencialLinkedPersons';
+    public const BOOK_LINKED_TOPICS_FIELD_HANDLE = 'sapiencialLinkedTopics';
+    public const CHAPTER_LINKED_RESOURCES_FIELD_HANDLE = 'sapiencialLinkedResources';
+    public const CHAPTER_LINKED_TOPICS_FIELD_HANDLE = 'sapiencialChapterLinkedTopics';
+    private const LEGACY_RELATION_FIELD_HANDLES = [
+        'sapiencialChapters',
+        'sapiencialPersons',
+        'sapiencialBookTopics',
+        'sapiencialResources',
+        'sapiencialTopics',
+    ];
 
     public function ensureContentModel(): void
     {
+        $this->removeLegacyRelationFields();
         [$payloadField, $refreshedAtField, $sapiencialIdField] = $this->ensureSyncFields();
         $relationFields = $this->ensureRelationFields();
 
@@ -42,13 +55,27 @@ class ContentModelService extends Component
             $settings->sapiencialBooksSectionHandle,
             'Sapiencial > Book',
             'Sapiencial > Book',
-            [$payloadField, $refreshedAtField, $sapiencialIdField]
+            [
+                $payloadField,
+                $refreshedAtField,
+                $sapiencialIdField,
+                $relationFields[self::BOOK_LINKED_CHAPTERS_FIELD_HANDLE],
+                $relationFields[self::BOOK_LINKED_PERSONS_FIELD_HANDLE],
+                $relationFields[self::BOOK_LINKED_TOPICS_FIELD_HANDLE],
+            ]
         );
         $this->ensureSectionWithEntryType(
             $settings->sapiencialChaptersSectionHandle,
             'Sapiencial > Chapter',
             'Sapiencial > Chapter',
-            [$payloadField, $refreshedAtField, $sapiencialIdField, $relationFields[self::CHAPTER_PARENT_BOOK_FIELD_HANDLE]]
+            [
+                $payloadField,
+                $refreshedAtField,
+                $sapiencialIdField,
+                $relationFields[self::CHAPTER_PARENT_BOOK_FIELD_HANDLE],
+                $relationFields[self::CHAPTER_LINKED_RESOURCES_FIELD_HANDLE],
+                $relationFields[self::CHAPTER_LINKED_TOPICS_FIELD_HANDLE],
+            ]
         );
         $this->ensureSectionWithEntryType(
             $settings->sapiencialResourcesSectionHandle,
@@ -208,6 +235,18 @@ class ContentModelService extends Component
         return [$payloadField, $refreshedAtField, $sapiencialIdField];
     }
 
+    private function removeLegacyRelationFields(): void
+    {
+        $fieldsService = Craft::$app->getFields();
+        foreach (self::LEGACY_RELATION_FIELD_HANDLES as $handle) {
+            $field = $fieldsService->getFieldByHandle($handle);
+            if (!$field) {
+                continue;
+            }
+            $fieldsService->deleteField($field);
+        }
+    }
+
     private function ensureRelationFields(): array
     {
         $fieldsService = Craft::$app->getFields();
@@ -217,6 +256,11 @@ class ContentModelService extends Component
             self::PERSON_PARENT_BOOK_FIELD_HANDLE => 'Sapiencial Person Parent Book',
             self::TOPIC_BOOKS_FIELD_HANDLE => 'Sapiencial Topic Books',
             self::TOPIC_CHAPTERS_FIELD_HANDLE => 'Sapiencial Topic Chapters',
+            self::BOOK_LINKED_CHAPTERS_FIELD_HANDLE => 'Sapiencial Linked Chapters',
+            self::BOOK_LINKED_PERSONS_FIELD_HANDLE => 'Sapiencial Linked Persons',
+            self::BOOK_LINKED_TOPICS_FIELD_HANDLE => 'Sapiencial Linked Topics',
+            self::CHAPTER_LINKED_RESOURCES_FIELD_HANDLE => 'Sapiencial Linked Resources',
+            self::CHAPTER_LINKED_TOPICS_FIELD_HANDLE => 'Sapiencial Chapter Linked Topics',
         ];
 
         $fields = [];
