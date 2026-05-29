@@ -121,7 +121,6 @@ class ContentModelService extends Component
             $payloadField->multiline = true;
             $payloadField->initialRows = 8;
             $payloadField->code = true;
-            $payloadField->columnType = 'text';
             $fieldsService->saveField($payloadField);
         }
 
