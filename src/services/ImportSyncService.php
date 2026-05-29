@@ -141,6 +141,7 @@ class ImportSyncService extends Component
             throw new Exception(sprintf('Invalid %s payload id', $remoteType));
         }
 
+        $section = $this->sectionForType($remoteType);
         $map = Plugin::$plugin->get('mapping')->getMap($remoteType, $remoteId, $sourceSite);
         $entry = null;
 
@@ -148,10 +149,13 @@ class ImportSyncService extends Component
             $entry = Entry::find()->id((int)$map->entryId)->status(null)->site('*')->one();
         }
 
+        if ($entry === null) {
+            $entry = $this->findExistingEntryByRemoteId($section, $remoteId);
+        }
+
         $isNew = $entry === null;
         if ($isNew) {
             $entry = new Entry();
-            $section = $this->sectionForType($remoteType);
             $entryType = Craft::$app->entries->getEntryTypesBySectionId((int)$section->id)[0] ?? null;
             if ($entryType === null) {
                 throw new Exception(sprintf('No entry type found for section %s', $section->handle));
@@ -168,9 +172,8 @@ class ImportSyncService extends Component
 
         $title = trim((string)($payload['title'] ?? $payload['name'] ?? sprintf('%s #%d', ucfirst($remoteType), $remoteId)));
         $slug = trim((string)($payload['slug'] ?? ''));
-        if ($slug === '') {
-            $slug = StringHelper::toKebabCase($title . '-' . $remoteType . '-' . $remoteId);
-        }
+        // Keep deterministic slugs to avoid duplicate entries on re-import.
+        $slug = StringHelper::toKebabCase($remoteType . '-' . $remoteId);
 
         $entry->title = $title;
         $entry->slug = $slug;
@@ -304,6 +307,50 @@ class ImportSyncService extends Component
     private function localSite(): Site
     {
         return Craft::$app->getSites()->getPrimarySite();
+    }
+
+    private function findExistingEntryByRemoteId(Section $section, int $remoteId): ?Entry
+    {
+        // Fast path: deterministic slug introduced in sync v2.
+        $typeFromSection = match ($section->handle) {
+            Plugin::$plugin->getSettings()->sapiencialBooksSectionHandle => 'book',
+            Plugin::$plugin->getSettings()->sapiencialChaptersSectionHandle => 'chapter',
+            Plugin::$plugin->getSettings()->sapiencialResourcesSectionHandle => 'resource',
+            Plugin::$plugin->getSettings()->sapiencialPersonsSectionHandle => 'person',
+            default => 'entry',
+        };
+        $slug = StringHelper::toKebabCase($typeFromSection . '-' . $remoteId);
+        $bySlug = Entry::find()
+            ->sectionId((int)$section->id)
+            ->site('*')
+            ->status(null)
+            ->slug($slug)
+            ->one();
+        if ($bySlug) {
+            return $bySlug;
+        }
+
+        // Backfill path: detect legacy entries by payload JSON id.
+        $entries = Entry::find()
+            ->sectionId((int)$section->id)
+            ->site('*')
+            ->status(null)
+            ->limit(null)
+            ->all();
+
+        foreach ($entries as $candidate) {
+            $raw = (string)$candidate->getFieldValue(ContentModelService::PAYLOAD_JSON_FIELD_HANDLE);
+            if ($raw === '') {
+                continue;
+            }
+
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded) && (int)($decoded['id'] ?? 0) === $remoteId) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function logOperation(string $mode, int $remoteBookId, string $site, string $status, array $counts, array $errors, int $durationMs, bool $dryRun): void
