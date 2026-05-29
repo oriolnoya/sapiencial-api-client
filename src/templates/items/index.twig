@@ -31,17 +31,31 @@
           <tr>
             <th>Títol</th>
             <th>ID</th>
+            {% if selectedTab == 'books' %}<th>Status</th>{% endif %}
+            {% if selectedTab == 'books' %}<th>Last refreshed</th>{% endif %}
             {% if selectedTab == 'books' %}<th>Accions</th>{% endif %}
           </tr>
           </thead>
           <tbody>
           {% if selectedTab == 'books' %}
-            {% for item in remoteItems %}
+            {% for item in bookRows %}
               <tr>
-                <td>{{ item.title ?? '—' }}</td>
+                <td>{{ item.title }}</td>
                 <td><button type="button" class="btn small js-copy-id" data-id="{{ item.id }}">{{ item.id }}</button></td>
                 <td>
-                  {% set isImported = importedIds[item.id] is defined %}
+                  {% if item.status == 'synced' %}
+                    <span class="status green"></span> Synced
+                  {% elseif item.status == 'needs to sync' %}
+                    <span class="status yellow"></span> Needs to sync
+                  {% else %}
+                    <span class="status"></span> Not imported
+                  {% endif %}
+                </td>
+                <td>
+                  {{ item.lastRefreshed ? item.lastRefreshed|date('Y-m-d H:i') : '—' }}
+                </td>
+                <td>
+                  {% set isImported = item.isImported %}
                   <form method="post" accept-charset="UTF-8" style="display:inline-block;">
                     {{ csrfInput() }}
                     {{ actionInput(isImported ? 'sapiencial-api-client/items/sync' : 'sapiencial-api-client/items/import') }}
@@ -53,7 +67,7 @@
                 </td>
               </tr>
             {% else %}
-              <tr><td colspan="3" class="light">No hi ha resultats.</td></tr>
+              <tr><td colspan="5" class="light">No hi ha resultats.</td></tr>
             {% endfor %}
           {% else %}
             {% for row in rows %}

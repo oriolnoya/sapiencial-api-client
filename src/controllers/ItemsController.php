@@ -6,6 +6,7 @@ use Craft;
 use craft\elements\Entry;
 use craft\web\Controller;
 use sapiencial\sapiencialapiclient\Plugin;
+use sapiencial\sapiencialapiclient\services\ContentModelService;
 use sapiencial\sapiencialapiclient\records\EntityMapRecord;
 use yii\web\Response;
 
@@ -30,10 +31,54 @@ class ItemsController extends Controller
             $importedIds[(int)$row->remoteId] = (int)$row->entryId;
         }
 
+        $bookRows = [];
+        foreach ($remoteItems as $item) {
+            $remoteId = (int)($item['id'] ?? 0);
+            if ($remoteId < 1) {
+                continue;
+            }
+
+            $row = [
+                'title' => (string)($item['title'] ?? '—'),
+                'id' => $remoteId,
+                'status' => 'not imported',
+                'lastRefreshed' => null,
+                'isImported' => false,
+            ];
+
+            $entryId = $importedIds[$remoteId] ?? null;
+            if ($entryId) {
+                $row['isImported'] = true;
+                $entry = Entry::find()->id((int)$entryId)->site('*')->status(null)->one();
+                if ($entry) {
+                    $refreshedAt = $entry->getFieldValue(ContentModelService::REFRESHED_AT_FIELD_HANDLE);
+                    $row['lastRefreshed'] = $refreshedAt;
+
+                    $localPayload = (string)($entry->getFieldValue(ContentModelService::PAYLOAD_JSON_FIELD_HANDLE) ?? '');
+                    if ($localPayload === '') {
+                        $row['status'] = 'needs to sync';
+                    } else {
+                        try {
+                            $remoteFull = Plugin::$plugin->get('apiClient')->fetchByType('book', $remoteId, $site);
+                            $localHash = hash('sha256', $localPayload);
+                            $remoteHash = hash('sha256', json_encode($remoteFull, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                            $row['status'] = $localHash === $remoteHash ? 'synced' : 'needs to sync';
+                        } catch (\Throwable) {
+                            $row['status'] = 'needs to sync';
+                        }
+                    }
+                } else {
+                    $row['status'] = 'needs to sync';
+                }
+            }
+
+            $bookRows[] = $row;
+        }
+
         return $this->renderTemplate('sapiencial-api-client/items/index', [
             'selectedTab' => 'books',
             'searchQuery' => $q,
-            'remoteItems' => $remoteItems,
+            'bookRows' => $bookRows,
             'importedIds' => $importedIds,
             'rows' => [],
         ]);
