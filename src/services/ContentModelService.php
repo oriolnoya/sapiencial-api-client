@@ -29,10 +29,11 @@ class ContentModelService extends Component
 
         $settings = Plugin::$plugin->getSettings();
 
-        $this->ensureSectionWithEntryType($settings->sapiencialBooksSectionHandle, 'Sapiencial Books', 'Sapiencial Book', $payloadField, $refreshedAtField);
-        $this->ensureSectionWithEntryType($settings->sapiencialChaptersSectionHandle, 'Sapiencial Chapters', 'Sapiencial Chapter', $payloadField, $refreshedAtField);
-        $this->ensureSectionWithEntryType($settings->sapiencialResourcesSectionHandle, 'Sapiencial Resources', 'Sapiencial Resource', $payloadField, $refreshedAtField);
-        $this->ensureSectionWithEntryType($settings->sapiencialPersonsSectionHandle, 'Sapiencial Persons', 'Sapiencial Person', $payloadField, $refreshedAtField);
+        $this->ensureSectionWithEntryType($settings->sapiencialBooksSectionHandle, 'Sapiencial > Book', 'Sapiencial > Book', $payloadField, $refreshedAtField);
+        $this->ensureSectionWithEntryType($settings->sapiencialChaptersSectionHandle, 'Sapiencial > Chapter', 'Sapiencial > Chapter', $payloadField, $refreshedAtField);
+        $this->ensureSectionWithEntryType($settings->sapiencialResourcesSectionHandle, 'Sapiencial > Resource', 'Sapiencial > Resource', $payloadField, $refreshedAtField);
+        $this->ensureSectionWithEntryType($settings->sapiencialPersonsSectionHandle, 'Sapiencial > Person', 'Sapiencial > Person', $payloadField, $refreshedAtField);
+        $this->ensureSectionWithEntryType($settings->sapiencialTopicsSectionHandle, 'Sapiencial > Topic', 'Sapiencial > Topic', $payloadField, $refreshedAtField);
     }
 
     private function ensureSectionWithEntryType(string $sectionHandle, string $sectionName, string $entryTypeName, PlainText $payloadField, Date $refreshedAtField): void
@@ -40,6 +41,10 @@ class ContentModelService extends Component
         $entriesService = Craft::$app->getEntries();
         $section = $entriesService->getSectionByHandle($sectionHandle);
         if ($section) {
+            if ($section->name !== $sectionName) {
+                $section->name = $sectionName;
+                $entriesService->saveSection($section, false);
+            }
             $entryType = $this->ensureAtLeastOneEntryType($section, $entryTypeName);
             $this->ensureEntryTypeHasSyncFields($entryType, $payloadField, $refreshedAtField);
             return;
@@ -93,6 +98,10 @@ class ContentModelService extends Component
         $entriesService = Craft::$app->getEntries();
         $existing = $entriesService->getEntryTypesBySectionId((int)$section->id);
         if (!empty($existing)) {
+            if ($existing[0]->name !== $entryTypeName) {
+                $existing[0]->name = $entryTypeName;
+                $entriesService->saveEntryType($existing[0]);
+            }
             return $existing[0];
         }
 
