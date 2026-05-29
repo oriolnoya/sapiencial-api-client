@@ -137,7 +137,7 @@ class ItemsController extends Controller
                 continue;
             }
 
-            $entry = Entry::find()->id((int)$map->entryId)->site($site)->status(null)->one();
+            $entry = Entry::find()->id((int)$map->entryId)->site('*')->status(null)->one();
             if (!$entry) {
                 continue;
             }

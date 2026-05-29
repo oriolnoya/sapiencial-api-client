@@ -8,6 +8,7 @@ use craft\elements\Entry;
 use craft\helpers\DateTimeHelper;
 use craft\helpers\StringHelper;
 use craft\models\Section;
+use craft\models\Site;
 use DateTime;
 use sapiencial\sapiencialapiclient\Plugin;
 use sapiencial\sapiencialapiclient\records\EntityMapRecord;
@@ -144,7 +145,7 @@ class ImportSyncService extends Component
         $entry = null;
 
         if ($map) {
-            $entry = Entry::find()->id((int)$map->entryId)->status(null)->site($sourceSite)->one();
+            $entry = Entry::find()->id((int)$map->entryId)->status(null)->site('*')->one();
         }
 
         $isNew = $entry === null;
@@ -156,10 +157,7 @@ class ImportSyncService extends Component
                 throw new Exception(sprintf('No entry type found for section %s', $section->handle));
             }
 
-            $site = Craft::$app->sites->getSiteByHandle($sourceSite);
-            if ($site === null) {
-                throw new Exception('Site handle not found: ' . $sourceSite);
-            }
+            $site = $this->localSite();
 
             $entry->sectionId = (int)$section->id;
             $entry->typeId = (int)$entryType->id;
@@ -203,7 +201,7 @@ class ImportSyncService extends Component
 
     private function syncRelations(string $site, array $graph, int $bookEntryId, array $chapterEntryIds): void
     {
-        $book = Entry::find()->id($bookEntryId)->site($site)->status(null)->one();
+        $book = Entry::find()->id($bookEntryId)->site('*')->status(null)->one();
         if (!$book) {
             return;
         }
@@ -232,7 +230,7 @@ class ImportSyncService extends Component
                 continue;
             }
 
-            $chapter = Entry::find()->id($chapterEntryId)->site($site)->status(null)->one();
+            $chapter = Entry::find()->id($chapterEntryId)->site('*')->status(null)->one();
             if (!$chapter) {
                 continue;
             }
@@ -301,6 +299,11 @@ class ImportSyncService extends Component
         }
 
         return $section;
+    }
+
+    private function localSite(): Site
+    {
+        return Craft::$app->getSites()->getPrimarySite();
     }
 
     private function logOperation(string $mode, int $remoteBookId, string $site, string $status, array $counts, array $errors, int $durationMs, bool $dryRun): void
