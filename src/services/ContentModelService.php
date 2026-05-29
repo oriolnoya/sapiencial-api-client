@@ -153,6 +153,9 @@ class ContentModelService extends Component
         }
 
         $tab = $tabs[0];
+        foreach ($tabs as $t) {
+            $t->setLayout($layout);
+        }
         $elements = $tab->getElements();
         $existingFieldUids = [];
         foreach ($elements as $element) {
