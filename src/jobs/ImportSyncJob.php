@@ -29,9 +29,12 @@ class ImportSyncJob extends BaseJob
 
         try {
             $service = Plugin::$plugin->get('importSync');
+            $progress = function(float $fraction, string $label) use ($queue): void {
+                $this->setProgress($queue, max(0.05, min(0.99, $fraction)), $label);
+            };
             $result = $this->mode === 'import'
-                ? $service->importBook($this->remoteBookId, $this->site, $this->dryRun)
-                : $service->syncBook($this->remoteBookId, $this->site, $this->dryRun);
+                ? $service->importBook($this->remoteBookId, $this->site, $this->dryRun, $progress)
+                : $service->syncBook($this->remoteBookId, $this->site, $this->dryRun, $progress);
 
             if (($result['success'] ?? false) !== true) {
                 $errors = $result['errors'] ?? ['Unknown error'];
@@ -55,4 +58,3 @@ class ImportSyncJob extends BaseJob
         );
     }
 }
-

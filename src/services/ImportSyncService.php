@@ -18,20 +18,21 @@ use yii\base\Exception;
 
 class ImportSyncService extends Component
 {
-    public function importBook(int $remoteBookId, string $site, bool $dryRun = false): array
+    public function importBook(int $remoteBookId, string $site, bool $dryRun = false, ?callable $progress = null): array
     {
-        return $this->runBookSync('import', $remoteBookId, $site, $dryRun);
+        return $this->runBookSync('import', $remoteBookId, $site, $dryRun, $progress);
     }
 
-    public function syncBook(int $remoteBookId, string $site, bool $dryRun = false): array
+    public function syncBook(int $remoteBookId, string $site, bool $dryRun = false, ?callable $progress = null): array
     {
-        return $this->runBookSync('sync', $remoteBookId, $site, $dryRun);
+        return $this->runBookSync('sync', $remoteBookId, $site, $dryRun, $progress);
     }
 
-    private function runBookSync(string $mode, int $remoteBookId, string $site, bool $dryRun): array
+    private function runBookSync(string $mode, int $remoteBookId, string $site, bool $dryRun, ?callable $progress = null): array
     {
         Plugin::$plugin->get('contentModel')->ensureContentModel();
         $siteKey = mb_strtolower(trim($site));
+        $this->reportProgress($progress, 0.10, 'Fetching remote graph...');
 
         $started = microtime(true);
         $counts = ['created' => 0, 'updated' => 0, 'deleted' => 0, 'unchanged' => 0];
@@ -40,10 +41,12 @@ class ImportSyncService extends Component
         try {
             $graph = $this->fetchBookGraph($remoteBookId, $site);
             $upserted = [];
+            $this->reportProgress($progress, 0.35, 'Remote graph loaded.');
 
             if (!$dryRun) {
                 $bookEntryId = $this->upsertEntity('book', $graph['book'], $siteKey, null, $counts);
                 $upserted['book'][] = $graph['book']['id'];
+                $this->reportProgress($progress, 0.45, 'Book upserted.');
 
                 $chapterEntryIds = [];
                 foreach ($graph['chapters'] as $chapter) {
@@ -51,6 +54,7 @@ class ImportSyncService extends Component
                     $chapterEntryIds[$chapter['id']] = $chapterEntryId;
                     $upserted['chapter'][] = $chapter['id'];
                 }
+                $this->reportProgress($progress, 0.60, 'Chapters upserted.');
 
                 foreach ($graph['resourcesByChapter'] as $chapterRemoteId => $resources) {
                     $parentChapterEntryId = $chapterEntryIds[(int)$chapterRemoteId] ?? null;
@@ -59,6 +63,7 @@ class ImportSyncService extends Component
                         $upserted['resource'][] = $resource['id'];
                     }
                 }
+                $this->reportProgress($progress, 0.72, 'Resources upserted.');
 
                 foreach ($graph['persons'] as $person) {
                     $this->upsertEntity('person', $person, $siteKey, $bookEntryId, $counts);
@@ -69,9 +74,12 @@ class ImportSyncService extends Component
                     $this->upsertEntity('topic', $topic, $siteKey, $bookEntryId, $counts);
                     $upserted['topic'][] = $topic['id'];
                 }
+                $this->reportProgress($progress, 0.82, 'People and topics upserted.');
 
                 $this->syncRelations($siteKey, $graph, $bookEntryId, $chapterEntryIds);
+                $this->reportProgress($progress, 0.92, 'Relations synchronized.');
                 $counts['deleted'] += $this->deleteMissingDescendants($siteKey, $bookEntryId, $upserted);
+                $this->reportProgress($progress, 0.98, 'Cleanup completed.');
             }
         } catch (Throwable $e) {
             $errors[] = $e->getMessage();
@@ -89,6 +97,13 @@ class ImportSyncService extends Component
             'durationMs' => $durationMs,
             'dryRun' => $dryRun,
         ];
+    }
+
+    private function reportProgress(?callable $progress, float $fraction, string $label): void
+    {
+        if ($progress) {
+            $progress($fraction, $label);
+        }
     }
 
     private function fetchBookGraph(int $remoteBookId, string $site): array
