@@ -8,6 +8,8 @@ use craft\elements\Entry as EntryElement;
 use craft\fieldlayoutelements\CustomField;
 use craft\fieldlayoutelements\entries\EntryTitleField;
 use craft\fields\Date;
+use craft\fields\Entries;
+use craft\fields\Number;
 use craft\fields\PlainText;
 use craft\helpers\StringHelper;
 use craft\models\FieldLayout;
@@ -22,21 +24,38 @@ class ContentModelService extends Component
 {
     public const PAYLOAD_JSON_FIELD_HANDLE = 'sapiencialPayloadJson';
     public const REFRESHED_AT_FIELD_HANDLE = 'sapiencialRefreshedAt';
+    public const SAPIENCIAL_ID_FIELD_HANDLE = 'sapiencialId';
+    public const BOOK_CHAPTERS_FIELD_HANDLE = 'sapiencialChapters';
+    public const BOOK_PERSONS_FIELD_HANDLE = 'sapiencialPersons';
+    public const BOOK_TOPICS_FIELD_HANDLE = 'sapiencialBookTopics';
+    public const CHAPTER_RESOURCES_FIELD_HANDLE = 'sapiencialResources';
+    public const CHAPTER_TOPICS_FIELD_HANDLE = 'sapiencialTopics';
 
     public function ensureContentModel(): void
     {
-        [$payloadField, $refreshedAtField] = $this->ensureSyncFields();
+        [$payloadField, $refreshedAtField, $sapiencialIdField] = $this->ensureSyncFields();
+        $relationFields = $this->ensureRelationFields();
 
         $settings = Plugin::$plugin->getSettings();
 
-        $this->ensureSectionWithEntryType($settings->sapiencialBooksSectionHandle, 'Sapiencial > Book', 'Sapiencial > Book', $payloadField, $refreshedAtField);
-        $this->ensureSectionWithEntryType($settings->sapiencialChaptersSectionHandle, 'Sapiencial > Chapter', 'Sapiencial > Chapter', $payloadField, $refreshedAtField);
-        $this->ensureSectionWithEntryType($settings->sapiencialResourcesSectionHandle, 'Sapiencial > Resource', 'Sapiencial > Resource', $payloadField, $refreshedAtField);
-        $this->ensureSectionWithEntryType($settings->sapiencialPersonsSectionHandle, 'Sapiencial > Person', 'Sapiencial > Person', $payloadField, $refreshedAtField);
-        $this->ensureSectionWithEntryType($settings->sapiencialTopicsSectionHandle, 'Sapiencial > Topic', 'Sapiencial > Topic', $payloadField, $refreshedAtField);
+        $this->ensureSectionWithEntryType(
+            $settings->sapiencialBooksSectionHandle,
+            'Sapiencial > Book',
+            'Sapiencial > Book',
+            [$payloadField, $refreshedAtField, $sapiencialIdField, $relationFields[self::BOOK_CHAPTERS_FIELD_HANDLE], $relationFields[self::BOOK_PERSONS_FIELD_HANDLE], $relationFields[self::BOOK_TOPICS_FIELD_HANDLE]]
+        );
+        $this->ensureSectionWithEntryType(
+            $settings->sapiencialChaptersSectionHandle,
+            'Sapiencial > Chapter',
+            'Sapiencial > Chapter',
+            [$payloadField, $refreshedAtField, $sapiencialIdField, $relationFields[self::CHAPTER_RESOURCES_FIELD_HANDLE], $relationFields[self::CHAPTER_TOPICS_FIELD_HANDLE]]
+        );
+        $this->ensureSectionWithEntryType($settings->sapiencialResourcesSectionHandle, 'Sapiencial > Resource', 'Sapiencial > Resource', [$payloadField, $refreshedAtField, $sapiencialIdField]);
+        $this->ensureSectionWithEntryType($settings->sapiencialPersonsSectionHandle, 'Sapiencial > Person', 'Sapiencial > Person', [$payloadField, $refreshedAtField, $sapiencialIdField]);
+        $this->ensureSectionWithEntryType($settings->sapiencialTopicsSectionHandle, 'Sapiencial > Topic', 'Sapiencial > Topic', [$payloadField, $refreshedAtField, $sapiencialIdField]);
     }
 
-    private function ensureSectionWithEntryType(string $sectionHandle, string $sectionName, string $entryTypeName, PlainText $payloadField, Date $refreshedAtField): void
+    private function ensureSectionWithEntryType(string $sectionHandle, string $sectionName, string $entryTypeName, array $fields): void
     {
         $entriesService = Craft::$app->getEntries();
         $section = $entriesService->getSectionByHandle($sectionHandle);
@@ -46,7 +65,7 @@ class ContentModelService extends Component
                 $entriesService->saveSection($section, false);
             }
             $entryType = $this->ensureAtLeastOneEntryType($section, $entryTypeName);
-            $this->ensureEntryTypeHasSyncFields($entryType, $payloadField, $refreshedAtField);
+            $this->ensureEntryTypeHasFields($entryType, $fields);
             return;
         }
 
@@ -88,7 +107,7 @@ class ContentModelService extends Component
         $reloadedSection = $entriesService->getSectionByHandle($sectionHandle);
         if ($reloadedSection) {
             foreach ($entriesService->getEntryTypesBySectionId((int)$reloadedSection->id) as $reloadedEntryType) {
-                $this->ensureEntryTypeHasSyncFields($reloadedEntryType, $payloadField, $refreshedAtField);
+                $this->ensureEntryTypeHasFields($reloadedEntryType, $fields);
             }
         }
     }
@@ -143,10 +162,47 @@ class ContentModelService extends Component
             $fieldsService->saveField($refreshedAtField);
         }
 
-        return [$payloadField, $refreshedAtField];
+        $sapiencialIdField = $fieldsService->getFieldByHandle(self::SAPIENCIAL_ID_FIELD_HANDLE);
+        if (!$sapiencialIdField instanceof Number) {
+            $sapiencialIdField = new Number();
+            $sapiencialIdField->name = 'Sapiencial ID';
+            $sapiencialIdField->handle = self::SAPIENCIAL_ID_FIELD_HANDLE;
+            $sapiencialIdField->decimals = 0;
+            $fieldsService->saveField($sapiencialIdField);
+        }
+
+        return [$payloadField, $refreshedAtField, $sapiencialIdField];
     }
 
-    private function ensureEntryTypeHasSyncFields(EntryType $entryType, PlainText $payloadField, Date $refreshedAtField): void
+    private function ensureRelationFields(): array
+    {
+        $fieldsService = Craft::$app->getFields();
+        $fieldHandles = [
+            self::BOOK_CHAPTERS_FIELD_HANDLE => 'Sapiencial Chapters',
+            self::BOOK_PERSONS_FIELD_HANDLE => 'Sapiencial Persons',
+            self::BOOK_TOPICS_FIELD_HANDLE => 'Sapiencial Book Topics',
+            self::CHAPTER_RESOURCES_FIELD_HANDLE => 'Sapiencial Resources',
+            self::CHAPTER_TOPICS_FIELD_HANDLE => 'Sapiencial Topics',
+        ];
+
+        $fields = [];
+        foreach ($fieldHandles as $handle => $name) {
+            $field = $fieldsService->getFieldByHandle($handle);
+            if (!$field instanceof Entries) {
+                $field = new Entries();
+                $field->name = $name;
+                $field->handle = $handle;
+                $field->allowSelfRelations = false;
+                $field->maxRelations = null;
+                $fieldsService->saveField($field);
+            }
+            $fields[$handle] = $field;
+        }
+
+        return $fields;
+    }
+
+    private function ensureEntryTypeHasFields(EntryType $entryType, array $fields): void
     {
         $entriesService = Craft::$app->getEntries();
         $layout = $entryType->getFieldLayout();
@@ -173,11 +229,13 @@ class ContentModelService extends Component
             }
         }
 
-        if (!in_array($payloadField->uid, $existingFieldUids, true)) {
-            $elements[] = new CustomField($payloadField);
-        }
-        if (!in_array($refreshedAtField->uid, $existingFieldUids, true)) {
-            $elements[] = new CustomField($refreshedAtField);
+        foreach ($fields as $field) {
+            if (!$field || !isset($field->uid)) {
+                continue;
+            }
+            if (!in_array($field->uid, $existingFieldUids, true)) {
+                $elements[] = new CustomField($field);
+            }
         }
         if (empty($elements)) {
             // Keep a valid entry layout baseline for Craft entry types.

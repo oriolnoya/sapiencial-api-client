@@ -65,6 +65,11 @@ class ImportSyncService extends Component
                     $upserted['person'][] = $person['id'];
                 }
 
+                foreach ($graph['topics'] as $topic) {
+                    $this->upsertEntity('topic', $topic, $siteKey, $bookEntryId, $counts);
+                    $upserted['topic'][] = $topic['id'];
+                }
+
                 $this->syncRelations($siteKey, $graph, $bookEntryId, $chapterEntryIds);
                 $counts['deleted'] += $this->deleteMissingDescendants($siteKey, $bookEntryId, $upserted);
             }
@@ -96,12 +101,14 @@ class ImportSyncService extends Component
         }
 
         $chapters = [];
+        $chaptersById = [];
         $resourcesByChapter = [];
         $chapterIds = array_map(static fn(array $c): int => (int)($c['id'] ?? 0), $book['chapters'] ?? []);
 
         foreach (array_filter($chapterIds) as $chapterId) {
             $chapter = $api->fetchByType('chapter', $chapterId, $site);
             $chapters[] = $chapter;
+            $chaptersById[(int)$chapterId] = $chapter;
 
             $flattened = [];
             $resourceGroups = $chapter['resources'] ?? [];
@@ -127,11 +134,27 @@ class ImportSyncService extends Component
             }
         }
 
+        $topics = [];
+        foreach (($book['topics'] ?? []) as $topic) {
+            if (is_array($topic) && isset($topic['id'])) {
+                $topics[(int)$topic['id']] = $topic;
+            }
+        }
+        foreach ($chapters as $chapter) {
+            foreach (($chapter['topics'] ?? []) as $topic) {
+                if (is_array($topic) && isset($topic['id'])) {
+                    $topics[(int)$topic['id']] = $topic;
+                }
+            }
+        }
+
         return [
             'book' => $book,
             'chapters' => $chapters,
+            'chaptersById' => $chaptersById,
             'resourcesByChapter' => $resourcesByChapter,
             'persons' => array_values($persons),
+            'topics' => array_values($topics),
         ];
     }
 
@@ -186,6 +209,7 @@ class ImportSyncService extends Component
             ContentModelService::REFRESHED_AT_FIELD_HANDLE,
             new DateTime()
         );
+        $entry->setFieldValue(ContentModelService::SAPIENCIAL_ID_FIELD_HANDLE, $remoteId);
 
         if (!Craft::$app->elements->saveElement($entry, true, true, false)) {
             $err = implode(' | ', array_map(static fn(array $e): string => implode(', ', $e), $entry->getErrors()));
@@ -211,8 +235,8 @@ class ImportSyncService extends Component
         }
 
         $chapterIds = array_values($chapterEntryIds);
-        if ($book->getFieldLayout()?->getFieldByHandle('sapiencialChapters') !== null) {
-            $book->setFieldValue('sapiencialChapters', $chapterIds);
+        if ($book->getFieldLayout()?->getFieldByHandle(ContentModelService::BOOK_CHAPTERS_FIELD_HANDLE) !== null) {
+            $book->setFieldValue(ContentModelService::BOOK_CHAPTERS_FIELD_HANDLE, $chapterIds);
         }
 
         $personEntryIds = [];
@@ -222,8 +246,19 @@ class ImportSyncService extends Component
                 $personEntryIds[] = (int)$map->entryId;
             }
         }
-        if ($book->getFieldLayout()?->getFieldByHandle('sapiencialPersons') !== null) {
-            $book->setFieldValue('sapiencialPersons', $personEntryIds);
+        if ($book->getFieldLayout()?->getFieldByHandle(ContentModelService::BOOK_PERSONS_FIELD_HANDLE) !== null) {
+            $book->setFieldValue(ContentModelService::BOOK_PERSONS_FIELD_HANDLE, $personEntryIds);
+        }
+
+        $bookTopicEntryIds = [];
+        foreach ($graph['book']['topics'] ?? [] as $topic) {
+            $map = Plugin::$plugin->get('mapping')->getMap('topic', (int)($topic['id'] ?? 0), $site);
+            if ($map) {
+                $bookTopicEntryIds[] = (int)$map->entryId;
+            }
+        }
+        if ($book->getFieldLayout()?->getFieldByHandle(ContentModelService::BOOK_TOPICS_FIELD_HANDLE) !== null) {
+            $book->setFieldValue(ContentModelService::BOOK_TOPICS_FIELD_HANDLE, array_values(array_unique($bookTopicEntryIds)));
         }
 
         Craft::$app->elements->saveElement($book, false, false, false);
@@ -247,8 +282,19 @@ class ImportSyncService extends Component
                 }
             }
 
-            if ($chapter->getFieldLayout()?->getFieldByHandle('sapiencialResources') !== null) {
-                $chapter->setFieldValue('sapiencialResources', $resourceEntryIds);
+            if ($chapter->getFieldLayout()?->getFieldByHandle(ContentModelService::CHAPTER_RESOURCES_FIELD_HANDLE) !== null) {
+                $chapter->setFieldValue(ContentModelService::CHAPTER_RESOURCES_FIELD_HANDLE, $resourceEntryIds);
+            }
+
+            $topicEntryIds = [];
+            foreach (($graph['chaptersById'][(int)$chapterRemoteId]['topics'] ?? []) as $topic) {
+                $map = Plugin::$plugin->get('mapping')->getMap('topic', (int)($topic['id'] ?? 0), $site);
+                if ($map) {
+                    $topicEntryIds[] = (int)$map->entryId;
+                }
+            }
+            if ($chapter->getFieldLayout()?->getFieldByHandle(ContentModelService::CHAPTER_TOPICS_FIELD_HANDLE) !== null) {
+                $chapter->setFieldValue(ContentModelService::CHAPTER_TOPICS_FIELD_HANDLE, array_values(array_unique($topicEntryIds)));
             }
 
             Craft::$app->elements->saveElement($chapter, false, false, false);
@@ -258,7 +304,7 @@ class ImportSyncService extends Component
     private function deleteMissingDescendants(string $site, int $bookEntryId, array $upserted): int
     {
         $deleted = 0;
-        $allowedTypes = ['chapter', 'resource', 'person'];
+        $allowedTypes = ['chapter', 'resource', 'person', 'topic'];
 
         foreach ($allowedTypes as $type) {
             $keepIds = array_map('intval', array_unique($upserted[$type] ?? []));
@@ -294,6 +340,7 @@ class ImportSyncService extends Component
             'chapter' => $settings->sapiencialChaptersSectionHandle,
             'resource' => $settings->sapiencialResourcesSectionHandle,
             'person' => $settings->sapiencialPersonsSectionHandle,
+            'topic' => $settings->sapiencialTopicsSectionHandle,
             default => throw new Exception('Unsupported remote type for section mapping: ' . $remoteType),
         };
 
@@ -318,6 +365,7 @@ class ImportSyncService extends Component
             Plugin::$plugin->getSettings()->sapiencialChaptersSectionHandle => 'chapter',
             Plugin::$plugin->getSettings()->sapiencialResourcesSectionHandle => 'resource',
             Plugin::$plugin->getSettings()->sapiencialPersonsSectionHandle => 'person',
+            Plugin::$plugin->getSettings()->sapiencialTopicsSectionHandle => 'topic',
             default => 'entry',
         };
         $slug = StringHelper::toKebabCase($typeFromSection . '-' . $remoteId);
