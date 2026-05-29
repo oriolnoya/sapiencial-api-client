@@ -31,6 +31,7 @@ class ImportSyncService extends Component
     private function runBookSync(string $mode, int $remoteBookId, string $site, bool $dryRun): array
     {
         Plugin::$plugin->get('contentModel')->ensureContentModel();
+        $siteKey = mb_strtolower(trim($site));
 
         $started = microtime(true);
         $counts = ['created' => 0, 'updated' => 0, 'deleted' => 0, 'unchanged' => 0];
@@ -41,12 +42,12 @@ class ImportSyncService extends Component
             $upserted = [];
 
             if (!$dryRun) {
-                $bookEntryId = $this->upsertEntity('book', $graph['book'], $site, null, $counts);
+                $bookEntryId = $this->upsertEntity('book', $graph['book'], $siteKey, null, $counts);
                 $upserted['book'][] = $graph['book']['id'];
 
                 $chapterEntryIds = [];
                 foreach ($graph['chapters'] as $chapter) {
-                    $chapterEntryId = $this->upsertEntity('chapter', $chapter, $site, $bookEntryId, $counts);
+                    $chapterEntryId = $this->upsertEntity('chapter', $chapter, $siteKey, $bookEntryId, $counts);
                     $chapterEntryIds[$chapter['id']] = $chapterEntryId;
                     $upserted['chapter'][] = $chapter['id'];
                 }
@@ -54,18 +55,18 @@ class ImportSyncService extends Component
                 foreach ($graph['resourcesByChapter'] as $chapterRemoteId => $resources) {
                     $parentChapterEntryId = $chapterEntryIds[(int)$chapterRemoteId] ?? null;
                     foreach ($resources as $resource) {
-                        $this->upsertEntity('resource', $resource, $site, $parentChapterEntryId, $counts);
+                        $this->upsertEntity('resource', $resource, $siteKey, $parentChapterEntryId, $counts);
                         $upserted['resource'][] = $resource['id'];
                     }
                 }
 
                 foreach ($graph['persons'] as $person) {
-                    $this->upsertEntity('person', $person, $site, $bookEntryId, $counts);
+                    $this->upsertEntity('person', $person, $siteKey, $bookEntryId, $counts);
                     $upserted['person'][] = $person['id'];
                 }
 
-                $this->syncRelations($site, $graph, $bookEntryId, $chapterEntryIds);
-                $counts['deleted'] += $this->deleteMissingDescendants($site, $bookEntryId, $upserted);
+                $this->syncRelations($siteKey, $graph, $bookEntryId, $chapterEntryIds);
+                $counts['deleted'] += $this->deleteMissingDescendants($siteKey, $bookEntryId, $upserted);
             }
         } catch (Throwable $e) {
             $errors[] = $e->getMessage();
@@ -73,7 +74,7 @@ class ImportSyncService extends Component
 
         $durationMs = (int)round((microtime(true) - $started) * 1000);
         $status = empty($errors) ? 'ok' : 'error';
-        $this->logOperation($mode, $remoteBookId, $site, $status, $counts, $errors, $durationMs, $dryRun);
+        $this->logOperation($mode, $remoteBookId, $siteKey, $status, $counts, $errors, $durationMs, $dryRun);
 
         return [
             'success' => empty($errors),
@@ -273,7 +274,7 @@ class ImportSyncService extends Component
                     continue;
                 }
 
-                $entry = Entry::find()->id((int)$map->entryId)->site($site)->status(null)->one();
+                $entry = Entry::find()->id((int)$map->entryId)->site('*')->status(null)->one();
                 if ($entry) {
                     Craft::$app->elements->deleteElement($entry, true);
                     $deleted++;

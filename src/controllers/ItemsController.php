@@ -8,6 +8,7 @@ use craft\web\Controller;
 use sapiencial\sapiencialapiclient\Plugin;
 use sapiencial\sapiencialapiclient\services\ContentModelService;
 use sapiencial\sapiencialapiclient\records\EntityMapRecord;
+use DateTime;
 use yii\web\Response;
 
 class ItemsController extends Controller
@@ -23,11 +24,12 @@ class ItemsController extends Controller
     {
         $q = trim((string)Craft::$app->getRequest()->getQueryParam('q', ''));
         $site = (string)Plugin::$plugin->getSettings()->defaultSite;
+        $siteKey = mb_strtolower(trim($site));
 
         $remoteItems = Plugin::$plugin->get('remoteCatalog')->listRemoteBooks($q, $site, 200);
 
         $importedIds = [];
-        foreach (EntityMapRecord::find()->where(['remoteType' => 'book', 'sourceSite' => $site])->all() as $row) {
+        foreach (EntityMapRecord::find()->where(['remoteType' => 'book', 'sourceSite' => $siteKey])->all() as $row) {
             $importedIds[(int)$row->remoteId] = (int)$row->entryId;
         }
 
@@ -53,20 +55,8 @@ class ItemsController extends Controller
                 if ($entry) {
                     $refreshedAt = $entry->getFieldValue(ContentModelService::REFRESHED_AT_FIELD_HANDLE);
                     $row['lastRefreshed'] = $refreshedAt;
-
-                    $localPayload = (string)($entry->getFieldValue(ContentModelService::PAYLOAD_JSON_FIELD_HANDLE) ?? '');
-                    if ($localPayload === '') {
-                        $row['status'] = 'needs to sync';
-                    } else {
-                        try {
-                            $remoteFull = Plugin::$plugin->get('apiClient')->fetchByType('book', $remoteId, $site);
-                            $localHash = hash('sha256', $localPayload);
-                            $remoteHash = hash('sha256', json_encode($remoteFull, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-                            $row['status'] = $localHash === $remoteHash ? 'synced' : 'needs to sync';
-                        } catch (\Throwable) {
-                            $row['status'] = 'needs to sync';
-                        }
-                    }
+                    $remoteSyncAt = (string)($item['syncUpdatedAt'] ?? $item['updatedAt'] ?? '');
+                    $row['status'] = $this->computeStatusFromDates($refreshedAt, $remoteSyncAt);
                 } else {
                     $row['status'] = 'needs to sync';
                 }
@@ -82,6 +72,28 @@ class ItemsController extends Controller
             'importedIds' => $importedIds,
             'rows' => [],
         ]);
+    }
+
+    private function computeStatusFromDates(mixed $localRefreshedAt, string $remoteUpdatedAt): string
+    {
+        if ($localRefreshedAt === null) {
+            return 'needs to sync';
+        }
+
+        if ($remoteUpdatedAt === '') {
+            return 'needs to sync';
+        }
+
+        try {
+            $remoteTs = (new DateTime($remoteUpdatedAt))->getTimestamp();
+            $localTs = $localRefreshedAt instanceof \DateTimeInterface
+                ? $localRefreshedAt->getTimestamp()
+                : (new DateTime((string)$localRefreshedAt))->getTimestamp();
+
+            return $localTs >= $remoteTs ? 'synced' : 'needs to sync';
+        } catch (\Throwable) {
+            return 'needs to sync';
+        }
     }
 
     public function actionChapters(): Response
@@ -124,9 +136,10 @@ class ItemsController extends Controller
     {
         $q = trim((string)Craft::$app->getRequest()->getQueryParam('q', ''));
         $site = (string)Plugin::$plugin->getSettings()->defaultSite;
+        $siteKey = mb_strtolower(trim($site));
 
         $maps = EntityMapRecord::find()
-            ->where(['remoteType' => $remoteType, 'sourceSite' => $site])
+            ->where(['remoteType' => $remoteType, 'sourceSite' => $siteKey])
             ->orderBy(['titleSnapshot' => SORT_ASC])
             ->all();
 

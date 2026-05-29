@@ -9,6 +9,8 @@ class MappingService extends Component
 {
     public function getMap(string $remoteType, int $remoteId, string $sourceSite): ?EntityMapRecord
     {
+        $sourceSite = $this->normalizeSiteKey($sourceSite);
+
         return EntityMapRecord::findOne([
             'remoteType' => $remoteType,
             'remoteId' => $remoteId,
@@ -18,6 +20,7 @@ class MappingService extends Component
 
     public function upsertMap(string $remoteType, int $remoteId, string $sourceSite, int $entryId, ?int $parentEntryId = null, ?string $titleSnapshot = null): EntityMapRecord
     {
+        $sourceSite = $this->normalizeSiteKey($sourceSite);
         $record = $this->getMap($remoteType, $remoteId, $sourceSite) ?? new EntityMapRecord();
         $record->remoteType = $remoteType;
         $record->remoteId = $remoteId;
@@ -38,5 +41,10 @@ class MappingService extends Component
         }
 
         return $q->orderBy(['titleSnapshot' => SORT_ASC])->all();
+    }
+
+    private function normalizeSiteKey(string $sourceSite): string
+    {
+        return mb_strtolower(trim($sourceSite));
     }
 }
