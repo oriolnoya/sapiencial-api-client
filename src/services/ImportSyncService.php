@@ -233,7 +233,8 @@ class ImportSyncService extends Component
 
     private function syncRelations(string $site, array $graph, int $bookEntryId, array $chapterEntryIds): void
     {
-        $book = Entry::find()->id($bookEntryId)->site('*')->status(null)->one();
+        $localSite = $this->localSite();
+        $book = Entry::find()->id($bookEntryId)->siteId((int)$localSite->id)->status(null)->one();
         if (!$book) {
             return;
         }
@@ -258,7 +259,7 @@ class ImportSyncService extends Component
             }
             $linkedChapterEntryIds[] = $chapterEntryId;
 
-            $chapter = Entry::find()->id($chapterEntryId)->site('*')->status(null)->one();
+            $chapter = Entry::find()->id($chapterEntryId)->siteId((int)$localSite->id)->status(null)->one();
             if (!$chapter) {
                 continue;
             }
@@ -283,7 +284,7 @@ class ImportSyncService extends Component
                 if (!$map) {
                     continue;
                 }
-                $resourceEntry = Entry::find()->id((int)$map->entryId)->site('*')->status(null)->one();
+                $resourceEntry = Entry::find()->id((int)$map->entryId)->siteId((int)$localSite->id)->status(null)->one();
                 if (!$resourceEntry) {
                     continue;
                 }
@@ -301,7 +302,7 @@ class ImportSyncService extends Component
             if (!$map) {
                 continue;
             }
-            $personEntry = Entry::find()->id((int)$map->entryId)->site('*')->status(null)->one();
+            $personEntry = Entry::find()->id((int)$map->entryId)->siteId((int)$localSite->id)->status(null)->one();
             if (!$personEntry) {
                 continue;
             }
@@ -324,7 +325,7 @@ class ImportSyncService extends Component
             if (!$map) {
                 continue;
             }
-            $topicEntry = Entry::find()->id((int)$map->entryId)->site('*')->status(null)->one();
+            $topicEntry = Entry::find()->id((int)$map->entryId)->siteId((int)$localSite->id)->status(null)->one();
             if (!$topicEntry) {
                 continue;
             }
@@ -361,7 +362,7 @@ class ImportSyncService extends Component
         $this->saveElementOrFail($book, 'book reverse relations');
 
         foreach ($linkedChapterEntryIds as $chapterEntryId) {
-            $chapter = Entry::find()->id((int)$chapterEntryId)->site('*')->status(null)->one();
+            $chapter = Entry::find()->id((int)$chapterEntryId)->siteId((int)$localSite->id)->status(null)->one();
             if (!$chapter) {
                 continue;
             }
@@ -383,7 +384,7 @@ class ImportSyncService extends Component
 
     private function saveElementOrFail(Entry $entry, string $context): void
     {
-        if (Craft::$app->elements->saveElement($entry, false, false, false)) {
+        if (Craft::$app->elements->saveElement($entry, false, true, false)) {
             return;
         }
 
