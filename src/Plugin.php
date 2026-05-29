@@ -51,9 +51,15 @@ class Plugin extends CraftPlugin
                 static function(): void {
                     Craft::$app->getView()->registerJs(<<<'JS'
 (() => {
+  const enhanced = {
+    id: new WeakSet(),
+    json: new WeakSet(),
+  };
+
   const lockSapiencialId = () => {
     document.querySelectorAll('input[name^="fields[sapiencialId]"]').forEach((input) => {
       if (!(input instanceof HTMLInputElement)) return;
+      if (enhanced.id.has(input)) return;
       input.setAttribute('step', '1');
       input.setAttribute('inputmode', 'numeric');
       input.setAttribute('readonly', 'readonly');
@@ -72,11 +78,13 @@ class Plugin extends CraftPlugin
       const raw = (input.value || '').trim();
       badge.textContent = raw !== '' ? raw : '—';
       badge.setAttribute('title', 'Managed by Sapiencial sync.');
+      enhanced.id.add(input);
     });
   };
   const enhancePayloadJson = () => {
     document.querySelectorAll('textarea[name^="fields[sapiencialPayloadJson]"]').forEach((textarea) => {
       if (!(textarea instanceof HTMLTextAreaElement)) return;
+      if (enhanced.json.has(textarea)) return;
       const container = textarea.closest('.input');
       if (!container) return;
       if (container.querySelector('.sapiencial-json-viewer')) return;
@@ -140,6 +148,7 @@ class Plugin extends CraftPlugin
 
       textarea.style.display = 'none';
       container.appendChild(wrap);
+      enhanced.json.add(textarea);
 
       toggleBtn.addEventListener('click', () => {
         const isHidden = textarea.style.display === 'none';
@@ -149,12 +158,17 @@ class Plugin extends CraftPlugin
       });
     });
   };
-  lockSapiencialId();
-  enhancePayloadJson();
-  const observer = new MutationObserver(lockSapiencialId);
-  const observer2 = new MutationObserver(enhancePayloadJson);
-  observer.observe(document.body, {childList: true, subtree: true});
-  observer2.observe(document.body, {childList: true, subtree: true});
+  const runEnhancements = () => {
+    lockSapiencialId();
+    enhancePayloadJson();
+  };
+
+  runEnhancements();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runEnhancements, {once: true});
+  }
+  window.setTimeout(runEnhancements, 250);
+  window.setTimeout(runEnhancements, 1000);
 })();
 JS);
                     Craft::$app->getView()->registerCss(<<<'CSS'
