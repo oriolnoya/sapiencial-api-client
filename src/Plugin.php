@@ -53,6 +53,7 @@ class Plugin extends CraftPlugin
                 $event->rules['sapiencial-api-client/books'] = 'sapiencial-api-client/items/books';
                 $event->rules['sapiencial-api-client/chapters'] = 'sapiencial-api-client/items/chapters';
                 $event->rules['sapiencial-api-client/resources'] = 'sapiencial-api-client/items/resources';
+                $event->rules['sapiencial-api-client/operations'] = 'sapiencial-api-client/items/operations';
                 $event->rules['sapiencial-api-client/import'] = 'sapiencial-api-client/items/import';
                 $event->rules['sapiencial-api-client/sync'] = 'sapiencial-api-client/items/sync';
             }
@@ -82,6 +83,7 @@ class Plugin extends CraftPlugin
             'books' => ['label' => 'Llibres', 'url' => 'sapiencial-api-client/books'],
             'chapters' => ['label' => 'Capítols', 'url' => 'sapiencial-api-client/chapters'],
             'resources' => ['label' => 'Recursos', 'url' => 'sapiencial-api-client/resources'],
+            'operations' => ['label' => 'Operations', 'url' => 'sapiencial-api-client/operations'],
         ];
 
         return $item;

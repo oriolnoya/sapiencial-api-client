@@ -5,7 +5,9 @@ namespace sapiencial\sapiencialapiclient\controllers;
 use Craft;
 use craft\elements\Entry;
 use craft\web\Controller;
+use sapiencial\sapiencialapiclient\jobs\ImportSyncJob;
 use sapiencial\sapiencialapiclient\Plugin;
+use sapiencial\sapiencialapiclient\records\ImportLogRecord;
 use sapiencial\sapiencialapiclient\services\ContentModelService;
 use sapiencial\sapiencialapiclient\records\EntityMapRecord;
 use DateTime;
@@ -71,6 +73,7 @@ class ItemsController extends Controller
             'bookRows' => $bookRows,
             'importedIds' => $importedIds,
             'rows' => [],
+            'operations' => [],
         ]);
     }
 
@@ -106,6 +109,37 @@ class ItemsController extends Controller
         return $this->renderImportedType('resource');
     }
 
+    public function actionOperations(): Response
+    {
+        $rows = [];
+        $logs = ImportLogRecord::find()->orderBy(['createdAt' => SORT_DESC])->limit(100)->all();
+        foreach ($logs as $log) {
+            $counts = json_decode((string)$log->countsJson, true);
+            $errors = json_decode((string)$log->errorsJson, true);
+            $rows[] = [
+                'id' => (int)$log->id,
+                'mode' => (string)$log->mode,
+                'remoteBookId' => (int)$log->remoteBookId,
+                'sourceSite' => (string)$log->sourceSite,
+                'status' => (string)$log->status,
+                'counts' => is_array($counts) ? $counts : [],
+                'errors' => is_array($errors) ? $errors : [],
+                'durationMs' => (int)$log->durationMs,
+                'dryRun' => (bool)$log->dryRun,
+                'createdAt' => $log->createdAt,
+            ];
+        }
+
+        return $this->renderTemplate('sapiencial-api-client/items/index', [
+            'selectedTab' => 'operations',
+            'searchQuery' => '',
+            'bookRows' => [],
+            'rows' => [],
+            'operations' => $rows,
+            'importedIds' => [],
+        ]);
+    }
+
     public function actionImport(): Response
     {
         $this->requirePostRequest();
@@ -113,8 +147,13 @@ class ItemsController extends Controller
         $site = (string)Craft::$app->getRequest()->getBodyParam('site', Plugin::$plugin->getSettings()->defaultSite);
         $dryRun = (bool)Craft::$app->getRequest()->getBodyParam('dryRun', Plugin::$plugin->getSettings()->enableDryRunByDefault);
 
-        $result = Plugin::$plugin->get('importSync')->importBook($remoteBookId, $site, $dryRun);
-        $this->setNoticeOrError($result);
+        $jobId = Craft::$app->getQueue()->push(new ImportSyncJob([
+            'mode' => 'import',
+            'remoteBookId' => $remoteBookId,
+            'site' => $site,
+            'dryRun' => $dryRun,
+        ]));
+        Craft::$app->getSession()->setNotice(sprintf('Import job queued (#%d). Check Operations tab or Queue manager for progress.', $jobId));
 
         return $this->redirect('sapiencial-api-client/books');
     }
@@ -126,8 +165,13 @@ class ItemsController extends Controller
         $site = (string)Craft::$app->getRequest()->getBodyParam('site', Plugin::$plugin->getSettings()->defaultSite);
         $dryRun = (bool)Craft::$app->getRequest()->getBodyParam('dryRun', Plugin::$plugin->getSettings()->enableDryRunByDefault);
 
-        $result = Plugin::$plugin->get('importSync')->syncBook($remoteBookId, $site, $dryRun);
-        $this->setNoticeOrError($result);
+        $jobId = Craft::$app->getQueue()->push(new ImportSyncJob([
+            'mode' => 'sync',
+            'remoteBookId' => $remoteBookId,
+            'site' => $site,
+            'dryRun' => $dryRun,
+        ]));
+        Craft::$app->getSession()->setNotice(sprintf('Sync job queued (#%d). Check Operations tab or Queue manager for progress.', $jobId));
 
         return $this->redirect('sapiencial-api-client/books');
     }
@@ -166,26 +210,9 @@ class ItemsController extends Controller
             'searchQuery' => $q,
             'rows' => $rows,
             'remoteItems' => [],
+            'bookRows' => [],
+            'operations' => [],
             'importedIds' => [],
         ]);
-    }
-
-    private function setNoticeOrError(array $result): void
-    {
-        if (($result['success'] ?? false) === true) {
-            $counts = $result['counts'] ?? [];
-            Craft::$app->getSession()->setNotice(sprintf(
-                'Completed (%s). Created: %d, Updated: %d, Deleted: %d, Dry-run: %s',
-                (string)($result['mode'] ?? 'sync'),
-                (int)($counts['created'] ?? 0),
-                (int)($counts['updated'] ?? 0),
-                (int)($counts['deleted'] ?? 0),
-                ($result['dryRun'] ?? false) ? 'yes' : 'no'
-            ));
-            return;
-        }
-
-        $errors = $result['errors'] ?? ['Unknown error'];
-        Craft::$app->getSession()->setError('Sync failed: ' . implode(' | ', $errors));
     }
 }

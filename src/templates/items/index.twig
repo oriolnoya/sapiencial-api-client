@@ -7,20 +7,24 @@
   books: { label: 'Llibres', url: url('sapiencial-api-client/books') },
   chapters: { label: 'Capítols', url: url('sapiencial-api-client/chapters') },
   resources: { label: 'Recursos', url: url('sapiencial-api-client/resources') },
+  operations: { label: 'Operations', url: url('sapiencial-api-client/operations') },
 } %}
+{% set showSearch = selectedTab in ['books', 'chapters', 'resources'] %}
 
 {% block content %}
 <div class="elementindex">
   <main id="main" role="main" tabindex="-1">
     <div id="header-container">
       <header>
-        <div id="toolbar" class="flex">
-          <div class="search-container flex-grow texticon has-filter-btn">
-            <span class="texticon-icon search icon" aria-hidden="true"></span>
-            <input type="text" id="sapiencial-items-q" name="q" class="clearable text fullwidth" autocomplete="off" placeholder="Buscar..." value="{{ searchQuery ?? '' }}" dir="ltr" aria-label="Buscar">
-            <button type="button" class="clear-button clear-btn {{ (searchQuery ?? '') ? '' : 'hidden' }}" title="Borrar búsqueda" aria-label="Borrar búsqueda"></button>
+        {% if showSearch %}
+          <div id="toolbar" class="flex">
+            <div class="search-container flex-grow texticon has-filter-btn">
+              <span class="texticon-icon search icon" aria-hidden="true"></span>
+              <input type="text" id="sapiencial-items-q" name="q" class="clearable text fullwidth" autocomplete="off" placeholder="Buscar..." value="{{ searchQuery ?? '' }}" dir="ltr" aria-label="Buscar">
+              <button type="button" class="clear-button clear-btn {{ (searchQuery ?? '') ? '' : 'hidden' }}" title="Borrar búsqueda" aria-label="Borrar búsqueda"></button>
+            </div>
           </div>
-        </div>
+        {% endif %}
       </header>
     </div>
 
@@ -28,16 +32,56 @@
       <div class="tableview">
         <table class="data fullwidth">
           <thead>
-          <tr>
-            <th>Títol</th>
-            <th>ID</th>
-            {% if selectedTab == 'books' %}<th>Status</th>{% endif %}
-            {% if selectedTab == 'books' %}<th>Last refreshed</th>{% endif %}
-            {% if selectedTab == 'books' %}<th>Accions</th>{% endif %}
-          </tr>
+          {% if selectedTab == 'operations' %}
+            <tr>
+              <th>Date</th>
+              <th>Mode</th>
+              <th>Book ID</th>
+              <th>Site</th>
+              <th>Status</th>
+              <th>Dry run</th>
+              <th>Counts</th>
+              <th>Duration</th>
+              <th>Errors</th>
+            </tr>
+          {% else %}
+            <tr>
+              <th>Títol</th>
+              <th>ID</th>
+              {% if selectedTab == 'books' %}<th>Status</th>{% endif %}
+              {% if selectedTab == 'books' %}<th>Last refreshed</th>{% endif %}
+              {% if selectedTab == 'books' %}<th>Accions</th>{% endif %}
+            </tr>
+          {% endif %}
           </thead>
           <tbody>
-          {% if selectedTab == 'books' %}
+          {% if selectedTab == 'operations' %}
+            {% for op in operations ?? [] %}
+              <tr>
+                <td>{{ op.createdAt ? op.createdAt|date('Y-m-d H:i:s') : '—' }}</td>
+                <td>{{ op.mode }}</td>
+                <td><button type="button" class="btn small js-copy-id" data-id="{{ op.remoteBookId }}">{{ op.remoteBookId }}</button></td>
+                <td>{{ op.sourceSite }}</td>
+                <td>
+                  {% if op.status == 'ok' %}
+                    <span class="status green"></span> OK
+                  {% else %}
+                    <span class="status red"></span> Error
+                  {% endif %}
+                </td>
+                <td>{{ op.dryRun ? 'Yes' : 'No' }}</td>
+                <td>
+                  C: {{ op.counts.created ?? 0 }},
+                  U: {{ op.counts.updated ?? 0 }},
+                  D: {{ op.counts.deleted ?? 0 }}
+                </td>
+                <td>{{ op.durationMs }} ms</td>
+                <td>{{ (op.errors ?? [])|join(' | ') ?: '—' }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="9" class="light">No operations yet.</td></tr>
+            {% endfor %}
+          {% elseif selectedTab == 'books' %}
             {% for item in bookRows %}
               <tr>
                 <td>{{ item.title }}</td>
@@ -101,7 +145,7 @@
   const clearButton = document.querySelector('.clear-button');
   const path = '{{ selectedTab }}';
 
-  if (searchInput) {
+  if (searchInput && '{{ showSearch ? '1' : '0' }}' === '1') {
     const applySearch = () => {
       const url = new URL('{{ url('sapiencial-api-client') }}' + '/' + path, window.location.origin);
       const q = searchInput.value.trim();
