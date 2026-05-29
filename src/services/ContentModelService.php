@@ -6,6 +6,7 @@ use Craft;
 use craft\base\Component;
 use craft\elements\Entry as EntryElement;
 use craft\fieldlayoutelements\CustomField;
+use craft\fieldlayoutelements\entries\EntryTitleField;
 use craft\fields\Date;
 use craft\fields\PlainText;
 use craft\helpers\StringHelper;
@@ -15,6 +16,7 @@ use craft\models\EntryType;
 use craft\models\Section;
 use craft\models\Section_SiteSettings;
 use sapiencial\sapiencialapiclient\Plugin;
+use yii\base\Exception;
 
 class ContentModelService extends Component
 {
@@ -144,6 +146,7 @@ class ContentModelService extends Component
             $layout = new FieldLayout();
             $layout->type = EntryElement::class;
         }
+        $layout->type = EntryElement::class;
 
         $tabs = $layout->getTabs();
         if (empty($tabs)) {
@@ -165,10 +168,17 @@ class ContentModelService extends Component
         if (!in_array($refreshedAtField->uid, $existingFieldUids, true)) {
             $elements[] = new CustomField($refreshedAtField);
         }
+        if (empty($elements)) {
+            // Keep a valid entry layout baseline for Craft entry types.
+            $elements[] = new EntryTitleField();
+        }
 
         $tab->setElements($elements);
         $layout->setTabs($tabs);
         $entryType->setFieldLayout($layout);
-        $entriesService->saveEntryType($entryType, false);
+        if (!$entriesService->saveEntryType($entryType, true)) {
+            $errors = implode(' | ', array_map(static fn(array $e): string => implode(', ', $e), $entryType->getErrors()));
+            throw new Exception(sprintf('Unable to attach sync fields to entry type %s: %s', $entryType->handle, $errors));
+        }
     }
 }
