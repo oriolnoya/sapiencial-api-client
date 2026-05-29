@@ -266,7 +266,7 @@ class ImportSyncService extends Component
             if ($chapter->getFieldLayout()?->getFieldByHandle(ContentModelService::CHAPTER_PARENT_BOOK_FIELD_HANDLE) !== null) {
                 $chapter->setFieldValue(ContentModelService::CHAPTER_PARENT_BOOK_FIELD_HANDLE, [$bookEntryId]);
             }
-            Craft::$app->elements->saveElement($chapter, false, false, false);
+            $this->saveElementOrFail($chapter, 'chapter parent relation');
 
             $chapterTopicRemoteIds = [];
             foreach (($graph['chaptersById'][(int)$chapterRemoteId]['topics'] ?? []) as $topic) {
@@ -290,7 +290,7 @@ class ImportSyncService extends Component
                 if ($resourceEntry->getFieldLayout()?->getFieldByHandle(ContentModelService::RESOURCE_PARENT_CHAPTER_FIELD_HANDLE) !== null) {
                     $resourceEntry->setFieldValue(ContentModelService::RESOURCE_PARENT_CHAPTER_FIELD_HANDLE, [$chapterEntryId]);
                 }
-                Craft::$app->elements->saveElement($resourceEntry, false, false, false);
+                $this->saveElementOrFail($resourceEntry, 'resource parent relation');
                 $linkedResourceByChapter[$chapterEntryId][] = (int)$resourceEntry->id;
             }
         }
@@ -308,7 +308,7 @@ class ImportSyncService extends Component
             if ($personEntry->getFieldLayout()?->getFieldByHandle(ContentModelService::PERSON_PARENT_BOOK_FIELD_HANDLE) !== null) {
                 $personEntry->setFieldValue(ContentModelService::PERSON_PARENT_BOOK_FIELD_HANDLE, [$bookEntryId]);
             }
-            Craft::$app->elements->saveElement($personEntry, false, false, false);
+            $this->saveElementOrFail($personEntry, 'person parent relation');
             $linkedPersonEntryIds[] = (int)$personEntry->id;
         }
 
@@ -338,7 +338,7 @@ class ImportSyncService extends Component
             if ($topicEntry->getFieldLayout()?->getFieldByHandle(ContentModelService::TOPIC_CHAPTERS_FIELD_HANDLE) !== null) {
                 $topicEntry->setFieldValue(ContentModelService::TOPIC_CHAPTERS_FIELD_HANDLE, $chapterIds);
             }
-            Craft::$app->elements->saveElement($topicEntry, false, false, false);
+            $this->saveElementOrFail($topicEntry, 'topic parent relations');
 
             if (!empty($bookIds)) {
                 $linkedBookTopicEntryIds[] = (int)$topicEntry->id;
@@ -358,7 +358,7 @@ class ImportSyncService extends Component
         if ($book->getFieldLayout()?->getFieldByHandle(ContentModelService::BOOK_LINKED_TOPICS_FIELD_HANDLE) !== null) {
             $book->setFieldValue(ContentModelService::BOOK_LINKED_TOPICS_FIELD_HANDLE, array_values(array_unique($linkedBookTopicEntryIds)));
         }
-        Craft::$app->elements->saveElement($book, false, false, false);
+        $this->saveElementOrFail($book, 'book reverse relations');
 
         foreach ($linkedChapterEntryIds as $chapterEntryId) {
             $chapter = Entry::find()->id((int)$chapterEntryId)->site('*')->status(null)->one();
@@ -377,8 +377,28 @@ class ImportSyncService extends Component
                     array_values(array_unique($linkedChapterTopicEntryIds[$chapterEntryId] ?? []))
                 );
             }
-            Craft::$app->elements->saveElement($chapter, false, false, false);
+            $this->saveElementOrFail($chapter, 'chapter reverse relations');
         }
+    }
+
+    private function saveElementOrFail(Entry $entry, string $context): void
+    {
+        if (Craft::$app->elements->saveElement($entry, false, false, false)) {
+            return;
+        }
+
+        $errorChunks = [];
+        foreach ($entry->getErrors() as $attr => $messages) {
+            $errorChunks[] = $attr . ': ' . implode(', ', (array)$messages);
+        }
+        $errorText = empty($errorChunks) ? 'unknown validation error' : implode(' | ', $errorChunks);
+        throw new Exception(sprintf(
+            'Failed saving %s for entry #%d (%s): %s',
+            $context,
+            (int)$entry->id,
+            (string)$entry->title,
+            $errorText
+        ));
     }
 
     private function deleteMissingDescendants(string $site, int $bookEntryId, array $upserted): int
