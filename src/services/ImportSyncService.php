@@ -238,35 +238,16 @@ class ImportSyncService extends Component
             return;
         }
 
-        $chapterIds = array_values($chapterEntryIds);
-        if ($book->getFieldLayout()?->getFieldByHandle(ContentModelService::BOOK_CHAPTERS_FIELD_HANDLE) !== null) {
-            $book->setFieldValue(ContentModelService::BOOK_CHAPTERS_FIELD_HANDLE, $chapterIds);
-        }
-
-        $personEntryIds = [];
-        foreach ($graph['persons'] as $person) {
-            $map = Plugin::$plugin->get('mapping')->getMap('person', (int)$person['id'], $site);
-            if ($map) {
-                $personEntryIds[] = (int)$map->entryId;
+        $topicToBook = [];
+        foreach (($graph['book']['topics'] ?? []) as $topic) {
+            $topicId = (int)($topic['id'] ?? 0);
+            if ($topicId > 0) {
+                $topicToBook[$topicId] = true;
             }
         }
-        if ($book->getFieldLayout()?->getFieldByHandle(ContentModelService::BOOK_PERSONS_FIELD_HANDLE) !== null) {
-            $book->setFieldValue(ContentModelService::BOOK_PERSONS_FIELD_HANDLE, $personEntryIds);
-        }
+        $topicToChapterIds = [];
 
-        $bookTopicEntryIds = [];
-        foreach ($graph['book']['topics'] ?? [] as $topic) {
-            $map = Plugin::$plugin->get('mapping')->getMap('topic', (int)($topic['id'] ?? 0), $site);
-            if ($map) {
-                $bookTopicEntryIds[] = (int)$map->entryId;
-            }
-        }
-        if ($book->getFieldLayout()?->getFieldByHandle(ContentModelService::BOOK_TOPICS_FIELD_HANDLE) !== null) {
-            $book->setFieldValue(ContentModelService::BOOK_TOPICS_FIELD_HANDLE, array_values(array_unique($bookTopicEntryIds)));
-        }
-
-        Craft::$app->elements->saveElement($book, false, false, false);
-
+        // Chapter -> parent Book and Resource -> parent Chapter
         foreach ($graph['resourcesByChapter'] as $chapterRemoteId => $resources) {
             $chapterEntryId = $chapterEntryIds[(int)$chapterRemoteId] ?? null;
             if (!$chapterEntryId) {
@@ -278,30 +259,78 @@ class ImportSyncService extends Component
                 continue;
             }
 
-            $resourceEntryIds = [];
+            if ($chapter->getFieldLayout()?->getFieldByHandle(ContentModelService::CHAPTER_PARENT_BOOK_FIELD_HANDLE) !== null) {
+                $chapter->setFieldValue(ContentModelService::CHAPTER_PARENT_BOOK_FIELD_HANDLE, [$bookEntryId]);
+            }
+            Craft::$app->elements->saveElement($chapter, false, false, false);
+
+            $chapterTopicRemoteIds = [];
+            foreach (($graph['chaptersById'][(int)$chapterRemoteId]['topics'] ?? []) as $topic) {
+                $topicRemoteId = (int)($topic['id'] ?? 0);
+                if ($topicRemoteId > 0) {
+                    $chapterTopicRemoteIds[] = $topicRemoteId;
+                    $topicToChapterIds[$topicRemoteId][] = $chapterEntryId;
+                }
+            }
+            $chapterTopicRemoteIds = array_values(array_unique($chapterTopicRemoteIds));
+
             foreach ($resources as $resource) {
                 $map = Plugin::$plugin->get('mapping')->getMap('resource', (int)$resource['id'], $site);
-                if ($map) {
-                    $resourceEntryIds[] = (int)$map->entryId;
+                if (!$map) {
+                    continue;
                 }
-            }
-
-            if ($chapter->getFieldLayout()?->getFieldByHandle(ContentModelService::CHAPTER_RESOURCES_FIELD_HANDLE) !== null) {
-                $chapter->setFieldValue(ContentModelService::CHAPTER_RESOURCES_FIELD_HANDLE, $resourceEntryIds);
-            }
-
-            $topicEntryIds = [];
-            foreach (($graph['chaptersById'][(int)$chapterRemoteId]['topics'] ?? []) as $topic) {
-                $map = Plugin::$plugin->get('mapping')->getMap('topic', (int)($topic['id'] ?? 0), $site);
-                if ($map) {
-                    $topicEntryIds[] = (int)$map->entryId;
+                $resourceEntry = Entry::find()->id((int)$map->entryId)->site('*')->status(null)->one();
+                if (!$resourceEntry) {
+                    continue;
                 }
+                if ($resourceEntry->getFieldLayout()?->getFieldByHandle(ContentModelService::RESOURCE_PARENT_CHAPTER_FIELD_HANDLE) !== null) {
+                    $resourceEntry->setFieldValue(ContentModelService::RESOURCE_PARENT_CHAPTER_FIELD_HANDLE, [$chapterEntryId]);
+                }
+                Craft::$app->elements->saveElement($resourceEntry, false, false, false);
             }
-            if ($chapter->getFieldLayout()?->getFieldByHandle(ContentModelService::CHAPTER_TOPICS_FIELD_HANDLE) !== null) {
-                $chapter->setFieldValue(ContentModelService::CHAPTER_TOPICS_FIELD_HANDLE, array_values(array_unique($topicEntryIds)));
+        }
+
+        // Person -> parent Book
+        foreach ($graph['persons'] as $person) {
+            $map = Plugin::$plugin->get('mapping')->getMap('person', (int)($person['id'] ?? 0), $site);
+            if (!$map) {
+                continue;
+            }
+            $personEntry = Entry::find()->id((int)$map->entryId)->site('*')->status(null)->one();
+            if (!$personEntry) {
+                continue;
+            }
+            if ($personEntry->getFieldLayout()?->getFieldByHandle(ContentModelService::PERSON_PARENT_BOOK_FIELD_HANDLE) !== null) {
+                $personEntry->setFieldValue(ContentModelService::PERSON_PARENT_BOOK_FIELD_HANDLE, [$bookEntryId]);
+            }
+            Craft::$app->elements->saveElement($personEntry, false, false, false);
+        }
+
+        // Topic -> parent Books and parent Chapters
+        foreach ($graph['topics'] as $topic) {
+            $topicRemoteId = (int)($topic['id'] ?? 0);
+            if ($topicRemoteId < 1) {
+                continue;
+            }
+            $map = Plugin::$plugin->get('mapping')->getMap('topic', $topicRemoteId, $site);
+            if (!$map) {
+                continue;
+            }
+            $topicEntry = Entry::find()->id((int)$map->entryId)->site('*')->status(null)->one();
+            if (!$topicEntry) {
+                continue;
             }
 
-            Craft::$app->elements->saveElement($chapter, false, false, false);
+            $bookIds = !empty($topicToBook[$topicRemoteId]) ? [$bookEntryId] : [];
+            $chapterIds = array_values(array_unique($topicToChapterIds[$topicRemoteId] ?? []));
+
+            if ($topicEntry->getFieldLayout()?->getFieldByHandle(ContentModelService::TOPIC_BOOKS_FIELD_HANDLE) !== null) {
+                $topicEntry->setFieldValue(ContentModelService::TOPIC_BOOKS_FIELD_HANDLE, $bookIds);
+            }
+            if ($topicEntry->getFieldLayout()?->getFieldByHandle(ContentModelService::TOPIC_CHAPTERS_FIELD_HANDLE) !== null) {
+                $topicEntry->setFieldValue(ContentModelService::TOPIC_CHAPTERS_FIELD_HANDLE, $chapterIds);
+            }
+            Craft::$app->elements->saveElement($topicEntry, false, false, false);
         }
     }
 

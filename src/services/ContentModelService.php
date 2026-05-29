@@ -25,11 +25,11 @@ class ContentModelService extends Component
     public const PAYLOAD_JSON_FIELD_HANDLE = 'sapiencialPayloadJson';
     public const REFRESHED_AT_FIELD_HANDLE = 'sapiencialRefreshedAt';
     public const SAPIENCIAL_ID_FIELD_HANDLE = 'sapiencialId';
-    public const BOOK_CHAPTERS_FIELD_HANDLE = 'sapiencialChapters';
-    public const BOOK_PERSONS_FIELD_HANDLE = 'sapiencialPersons';
-    public const BOOK_TOPICS_FIELD_HANDLE = 'sapiencialBookTopics';
-    public const CHAPTER_RESOURCES_FIELD_HANDLE = 'sapiencialResources';
-    public const CHAPTER_TOPICS_FIELD_HANDLE = 'sapiencialTopics';
+    public const CHAPTER_PARENT_BOOK_FIELD_HANDLE = 'sapiencialParentBook';
+    public const RESOURCE_PARENT_CHAPTER_FIELD_HANDLE = 'sapiencialParentChapter';
+    public const PERSON_PARENT_BOOK_FIELD_HANDLE = 'sapiencialPersonParentBook';
+    public const TOPIC_BOOKS_FIELD_HANDLE = 'sapiencialTopicBooks';
+    public const TOPIC_CHAPTERS_FIELD_HANDLE = 'sapiencialTopicChapters';
 
     public function ensureContentModel(): void
     {
@@ -42,17 +42,32 @@ class ContentModelService extends Component
             $settings->sapiencialBooksSectionHandle,
             'Sapiencial > Book',
             'Sapiencial > Book',
-            [$payloadField, $refreshedAtField, $sapiencialIdField, $relationFields[self::BOOK_CHAPTERS_FIELD_HANDLE], $relationFields[self::BOOK_PERSONS_FIELD_HANDLE], $relationFields[self::BOOK_TOPICS_FIELD_HANDLE]]
+            [$payloadField, $refreshedAtField, $sapiencialIdField]
         );
         $this->ensureSectionWithEntryType(
             $settings->sapiencialChaptersSectionHandle,
             'Sapiencial > Chapter',
             'Sapiencial > Chapter',
-            [$payloadField, $refreshedAtField, $sapiencialIdField, $relationFields[self::CHAPTER_RESOURCES_FIELD_HANDLE], $relationFields[self::CHAPTER_TOPICS_FIELD_HANDLE]]
+            [$payloadField, $refreshedAtField, $sapiencialIdField, $relationFields[self::CHAPTER_PARENT_BOOK_FIELD_HANDLE]]
         );
-        $this->ensureSectionWithEntryType($settings->sapiencialResourcesSectionHandle, 'Sapiencial > Resource', 'Sapiencial > Resource', [$payloadField, $refreshedAtField, $sapiencialIdField]);
-        $this->ensureSectionWithEntryType($settings->sapiencialPersonsSectionHandle, 'Sapiencial > Person', 'Sapiencial > Person', [$payloadField, $refreshedAtField, $sapiencialIdField]);
-        $this->ensureSectionWithEntryType($settings->sapiencialTopicsSectionHandle, 'Sapiencial > Topic', 'Sapiencial > Topic', [$payloadField, $refreshedAtField, $sapiencialIdField]);
+        $this->ensureSectionWithEntryType(
+            $settings->sapiencialResourcesSectionHandle,
+            'Sapiencial > Resource',
+            'Sapiencial > Resource',
+            [$payloadField, $refreshedAtField, $sapiencialIdField, $relationFields[self::RESOURCE_PARENT_CHAPTER_FIELD_HANDLE]]
+        );
+        $this->ensureSectionWithEntryType(
+            $settings->sapiencialPersonsSectionHandle,
+            'Sapiencial > Person',
+            'Sapiencial > Person',
+            [$payloadField, $refreshedAtField, $sapiencialIdField, $relationFields[self::PERSON_PARENT_BOOK_FIELD_HANDLE]]
+        );
+        $this->ensureSectionWithEntryType(
+            $settings->sapiencialTopicsSectionHandle,
+            'Sapiencial > Topic',
+            'Sapiencial > Topic',
+            [$payloadField, $refreshedAtField, $sapiencialIdField, $relationFields[self::TOPIC_BOOKS_FIELD_HANDLE], $relationFields[self::TOPIC_CHAPTERS_FIELD_HANDLE]]
+        );
     }
 
     private function ensureSectionWithEntryType(string $sectionHandle, string $sectionName, string $entryTypeName, array $fields): void
@@ -197,11 +212,11 @@ class ContentModelService extends Component
     {
         $fieldsService = Craft::$app->getFields();
         $fieldHandles = [
-            self::BOOK_CHAPTERS_FIELD_HANDLE => 'Sapiencial Chapters',
-            self::BOOK_PERSONS_FIELD_HANDLE => 'Sapiencial Persons',
-            self::BOOK_TOPICS_FIELD_HANDLE => 'Sapiencial Book Topics',
-            self::CHAPTER_RESOURCES_FIELD_HANDLE => 'Sapiencial Resources',
-            self::CHAPTER_TOPICS_FIELD_HANDLE => 'Sapiencial Topics',
+            self::CHAPTER_PARENT_BOOK_FIELD_HANDLE => 'Sapiencial Parent Book',
+            self::RESOURCE_PARENT_CHAPTER_FIELD_HANDLE => 'Sapiencial Parent Chapter',
+            self::PERSON_PARENT_BOOK_FIELD_HANDLE => 'Sapiencial Person Parent Book',
+            self::TOPIC_BOOKS_FIELD_HANDLE => 'Sapiencial Topic Books',
+            self::TOPIC_CHAPTERS_FIELD_HANDLE => 'Sapiencial Topic Chapters',
         ];
 
         $fields = [];
@@ -212,7 +227,12 @@ class ContentModelService extends Component
                 $field->name = $name;
                 $field->handle = $handle;
                 $field->allowSelfRelations = false;
-                $field->maxRelations = null;
+                $field->maxRelations = match ($handle) {
+                    self::CHAPTER_PARENT_BOOK_FIELD_HANDLE,
+                    self::RESOURCE_PARENT_CHAPTER_FIELD_HANDLE,
+                    self::PERSON_PARENT_BOOK_FIELD_HANDLE => 1,
+                    default => null,
+                };
                 $fieldsService->saveField($field);
             }
             $fields[$handle] = $field;
