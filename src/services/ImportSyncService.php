@@ -201,9 +201,13 @@ class ImportSyncService extends Component
 
         $entry->title = $title;
         $entry->slug = $slug;
+        $prettyPayloadJson = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!is_string($prettyPayloadJson)) {
+            $prettyPayloadJson = '{}';
+        }
         $entry->setFieldValue(
             ContentModelService::PAYLOAD_JSON_FIELD_HANDLE,
-            json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            $prettyPayloadJson
         );
         $entry->setFieldValue(
             ContentModelService::REFRESHED_AT_FIELD_HANDLE,
