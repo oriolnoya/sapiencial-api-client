@@ -56,13 +56,21 @@
                 </td>
                 <td>
                   {% set isImported = item.isImported %}
+                  <form method="post" accept-charset="UTF-8" style="display:inline-block; margin-right:6px;">
+                    {{ csrfInput() }}
+                    {{ actionInput(isImported ? 'sapiencial-api-client/items/sync' : 'sapiencial-api-client/items/import') }}
+                    {{ hiddenInput('remoteBookId', item.id) }}
+                    {{ hiddenInput('site', craft.app.plugins.getPlugin('sapiencial-api-client').getSettings().defaultSite) }}
+                    {{ hiddenInput('dryRun', 0) }}
+                    <button class="btn small">{{ isImported ? 'Sync' : 'Import' }}</button>
+                  </form>
                   <form method="post" accept-charset="UTF-8" style="display:inline-block;">
                     {{ csrfInput() }}
                     {{ actionInput(isImported ? 'sapiencial-api-client/items/sync' : 'sapiencial-api-client/items/import') }}
                     {{ hiddenInput('remoteBookId', item.id) }}
                     {{ hiddenInput('site', craft.app.plugins.getPlugin('sapiencial-api-client').getSettings().defaultSite) }}
-                    {{ hiddenInput('dryRun', craft.app.plugins.getPlugin('sapiencial-api-client').getSettings().enableDryRunByDefault ? 1 : 0) }}
-                    <button class="btn small">{{ isImported ? 'Sync' : 'Import' }}</button>
+                    {{ hiddenInput('dryRun', 1) }}
+                    <button class="btn small">Dry run</button>
                   </form>
                 </td>
               </tr>
