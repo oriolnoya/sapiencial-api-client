@@ -29,6 +29,8 @@ class ImportSyncService extends Component
 
     private function runBookSync(string $mode, int $remoteBookId, string $site, bool $dryRun): array
     {
+        Plugin::$plugin->get('contentModel')->ensureContentModel();
+
         $started = microtime(true);
         $counts = ['created' => 0, 'updated' => 0, 'deleted' => 0, 'unchanged' => 0];
         $errors = [];

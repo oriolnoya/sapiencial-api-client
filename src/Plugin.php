@@ -8,6 +8,7 @@ use craft\events\RegisterUrlRulesEvent;
 use craft\web\UrlManager;
 use sapiencial\sapiencialapiclient\models\Settings;
 use sapiencial\sapiencialapiclient\services\ApiClient;
+use sapiencial\sapiencialapiclient\services\ContentModelService;
 use sapiencial\sapiencialapiclient\services\ImportSyncService;
 use sapiencial\sapiencialapiclient\services\MappingService;
 use sapiencial\sapiencialapiclient\services\RemoteCatalogService;
@@ -31,7 +32,18 @@ class Plugin extends CraftPlugin
             'remoteCatalog' => RemoteCatalogService::class,
             'mapping' => MappingService::class,
             'importSync' => ImportSyncService::class,
+            'contentModel' => ContentModelService::class,
         ]);
+
+        if (Craft::$app->getRequest()->getIsCpRequest()) {
+            try {
+                /** @var ContentModelService $contentModel */
+                $contentModel = $this->get('contentModel');
+                $contentModel->ensureContentModel();
+            } catch (\Throwable $e) {
+                Craft::warning('[sapiencial-api-client] Unable to auto-bootstrap content model: ' . $e->getMessage(), __METHOD__);
+            }
+        }
 
         Event::on(
             UrlManager::class,

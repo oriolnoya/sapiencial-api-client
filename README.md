@@ -10,7 +10,9 @@ This plugin imports Sapiencial API content into local Craft entries and syncs up
 - Hard-delete descendants removed upstream, scoped to that imported book.
 
 ## Required setup
-Create local sections (and one entry type in each):
+No manual section bootstrap is required for fresh installs.
+
+On CP load (and before import/sync), the plugin auto-creates missing sections + one entry type:
 - `sapiencialBooks`
 - `sapiencialChapters`
 - `sapiencialResources`
